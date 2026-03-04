@@ -143,11 +143,14 @@ async def run():
             print(f"Checking: {channel} | Last seen ID: {last_id}")
 
             try:
-                async for message in client.iter_messages(channel, min_id=last_id, limit=50):
+                async for message in client.iter_messages(channel, min_id=last_id, limit=30):
                     if message.id <= last_id:
                         continue
 
-                    text = message.text or message.caption or ""
+                    try:
+                        text = message.text or getattr(message, "caption", "") or ""
+                    except Exception:
+                        text = ""
                     if not text:
                         if message.id > new_last_id:
                             new_last_id = message.id
