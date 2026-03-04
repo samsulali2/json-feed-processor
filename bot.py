@@ -1,7 +1,7 @@
 """
 Telegram Affiliate Deal Bot
 Reads messages from source deal channels, replaces links with your affiliate
-codes, and posts to your own Telegram channel.
+codes, shortens them, and posts to your own Telegram channel.
 """
 
 import os
@@ -27,7 +27,7 @@ STATE_FILE         = "last_seen.json"
 
 # ── URL Helpers ───────────────────────────────────────────────────────────────
 
-def expand_short_url(url: str) -> str:
+def expand_short_url(url):
     """Follow redirects to resolve short links like amzn.to"""
     try:
         r = requests.head(url, allow_redirects=True, timeout=10)
@@ -36,14 +36,14 @@ def expand_short_url(url: str) -> str:
         return url
 
 
-def inject_amazon_tag(url: str, tag: str) -> str:
+def inject_amazon_tag(url, tag):
     """Replace or add Amazon affiliate tag= parameter"""
     url = re.sub(r"([&?])tag=[^&]*", "", url)
     separator = "&" if "?" in url else "?"
     return f"{url}{separator}tag={tag}"
 
 
-def process_amazon_url(url: str):
+def process_amazon_url(url):
     """Returns affiliate URL if Amazon link, else None"""
     amazon_patterns = [
         r"https?://(?:www\.)?amazon\.in",
@@ -59,7 +59,7 @@ def process_amazon_url(url: str):
     return inject_amazon_tag(full_url, AMAZON_AFFILIATE)
 
 
-def process_flipkart_url(url: str):
+def process_flipkart_url(url):
     """Returns affiliate URL if Flipkart link, else None"""
     if not FLIPKART_AFFILIATE:
         return None
@@ -76,11 +76,25 @@ def process_flipkart_url(url: str):
     return f"{full_url}{separator}affid={FLIPKART_AFFILIATE}"
 
 
-def extract_urls(text: str) -> list:
+def extract_urls(text):
     return re.findall(r"https?://[^\s\)\]>\"']+", text or "")
 
 
-def rewrite_message(text: str):
+def shorten_url(url):
+    """Shorten a URL using TinyURL free API — no signup needed"""
+    try:
+        resp = requests.get(
+            f"https://tinyurl.com/api-create.php?url={url}",
+            timeout=10
+        )
+        if resp.status_code == 200 and resp.text.startswith("http"):
+            return resp.text.strip()
+    except Exception:
+        pass
+    return url  # return original if shortening fails
+
+
+def rewrite_message(text):
     """Replace all deal links with affiliate versions. Returns (new_text, was_modified)."""
     urls = extract_urls(text)
     modified = False
@@ -88,21 +102,22 @@ def rewrite_message(text: str):
     for url in urls:
         affiliate_url = process_amazon_url(url) or process_flipkart_url(url)
         if affiliate_url and affiliate_url != url:
-            new_text = new_text.replace(url, affiliate_url)
+            short_url = shorten_url(affiliate_url)
+            new_text = new_text.replace(url, short_url)
             modified = True
     return new_text, modified
 
 
 # ── State Management ──────────────────────────────────────────────────────────
 
-def load_state() -> dict:
+def load_state():
     if os.path.exists(STATE_FILE):
         with open(STATE_FILE) as f:
             return json.load(f)
     return {}
 
 
-def save_state(state: dict):
+def save_state(state):
     with open(STATE_FILE, "w") as f:
         json.dump(state, f)
 
