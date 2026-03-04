@@ -1,40 +1,32 @@
-# .github/workflows/deal_bot.yml
-# This file goes inside your GitHub repo at: .github/workflows/deal_bot.yml
-
 name: Telegram Affiliate Deal Bot
 
 on:
   schedule:
-    - cron: "*/10 * * * *"   # Runs every 10 minutes (GitHub minimum is 5 min)
-  workflow_dispatch:           # Also allows manual trigger from GitHub UI
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
 
 jobs:
   run-bot:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Download your repo code
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      # 2. Install Python
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
-      # 3. Install dependencies
       - name: Install dependencies
         run: pip install telethon requests
 
-      # 4. Restore last_seen.json from cache so we don't re-post old deals
       - name: Restore state cache
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v4
         with:
           path: last_seen.json
           key: last-seen-state-v1
 
-      # 5. Run the bot
       - name: Run bot
         env:
           TELEGRAM_API_ID: ${{ secrets.TELEGRAM_API_ID }}
@@ -47,9 +39,8 @@ jobs:
           FLIPKART_AFFILIATE_ID: ${{ secrets.FLIPKART_AFFILIATE_ID }}
         run: python bot.py
 
-      # 6. Save updated state so next run knows where it left off
       - name: Save state cache
-        uses: actions/cache@v4
+        uses: actions/cache/save@v4
         with:
           path: last_seen.json
-          key: last-seen-state-v1
+          key: last-seen-state-v1-${{ github.run_id }}
