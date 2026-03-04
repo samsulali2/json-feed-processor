@@ -16,11 +16,11 @@ from telethon.sessions import StringSession
 API_ID             = int(os.environ["TELEGRAM_API_ID"])
 API_HASH           = os.environ["TELEGRAM_API_HASH"]
 BOT_TOKEN          = os.environ["TELEGRAM_BOT_TOKEN"]
-YOUR_CHANNEL       = os.environ["YOUR_CHANNEL_USERNAME"]    # e.g. @mydealsChannel
-SOURCE_CHANNELS    = os.environ["SOURCE_CHANNELS"].split(",")
-AMAZON_AFFILIATE   = os.environ["AMAZON_AFFILIATE_ID"]      # e.g. yourname-21
-FLIPKART_AFFILIATE = os.environ.get("FLIPKART_AFFILIATE_ID", "")
-SESSION_STRING     = os.environ["TELEGRAM_SESSION_STRING"]
+YOUR_CHANNEL       = os.environ["YOUR_CHANNEL_USERNAME"].strip().lstrip('@')
+SOURCE_CHANNELS    = [c.strip().lstrip('@') for c in os.environ["SOURCE_CHANNELS"].split(",")]
+AMAZON_AFFILIATE   = os.environ["AMAZON_AFFILIATE_ID"].strip()
+FLIPKART_AFFILIATE = os.environ.get("FLIPKART_AFFILIATE_ID", "").strip()
+SESSION_STRING     = os.environ["TELEGRAM_SESSION_STRING"].strip()
 STATE_FILE         = "last_seen.json"
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -113,9 +113,11 @@ async def run():
     state = load_state()
     bot_api_url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
 
+    print(f"Source channels: {SOURCE_CHANNELS}")
+    print(f"Your channel: {YOUR_CHANNEL}")
+
     async with TelegramClient(StringSession(SESSION_STRING), API_ID, API_HASH) as client:
         for channel in SOURCE_CHANNELS:
-            channel = channel.strip()
             if not channel:
                 continue
 
@@ -139,9 +141,9 @@ async def run():
                     new_text, modified = rewrite_message(text)
 
                     if modified:
-                        new_text += f"\n\n🛒 Deals by @{YOUR_CHANNEL.lstrip('@')}"
+                        new_text += f"\n\n🛒 Deals by @{YOUR_CHANNEL}"
                         payload = {
-                            "chat_id": YOUR_CHANNEL,
+                            "chat_id": f"@{YOUR_CHANNEL}",
                             "text": new_text,
                             "disable_web_page_preview": False,
                         }
