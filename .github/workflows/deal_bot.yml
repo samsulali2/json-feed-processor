@@ -2,7 +2,9 @@ name: Telegram Affiliate Deal Bot
 
 on:
   schedule:
-    - cron: "*/10 * * * *"
+    # Runs every 10 minutes between 9AM and 11PM IST
+    # IST = UTC + 5:30, so 9AM IST = 3:30 UTC, 11PM IST = 17:30 UTC
+    - cron: "*/10 3-17 * * *"   # 3AM to 5PM UTC = 8:30AM to 10:30PM IST (close enough)
   workflow_dispatch:
 
 jobs:
