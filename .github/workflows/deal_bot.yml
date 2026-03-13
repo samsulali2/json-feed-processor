@@ -1,4 +1,4 @@
-name: Deal Bot + Website
+name: Deal Bot
 
 on:
   schedule:
@@ -18,7 +18,6 @@ jobs:
         with:
           path: |
             last_seen.json
-            deals.json
             seen_web.json
           key: bot-state-v2-${{ github.run_id }}
           restore-keys: |
@@ -50,17 +49,5 @@ jobs:
         with:
           path: |
             last_seen.json
-            deals.json
             seen_web.json
           key: bot-state-v2-${{ github.run_id }}
-
-      - name: Publish deals to GitHub Pages
-        if: always()
-        run: |
-          git config user.name "Deal Bot"
-          git config user.email "bot@deals"
-          git add deals.json index.html || true
-          git diff --cached --quiet || git commit -m "🤖 Update deals [skip ci]"
-          git push origin HEAD
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
