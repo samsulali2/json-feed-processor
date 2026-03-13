@@ -2,8 +2,8 @@
 Telegram Affiliate Deal Bot
 - Scrapes: desidime.com, freekaamaal.com, dealsmagnet.com, lootdunia.com
 - Also reads Telegram source channels
-- Amazon  → Amazon Associates tag
-- Others  → Cuelinks API
+- Amazon  → Amazon Associates tag (injected directly, no API call needed)
+- Flipkart/Myntra/Ajio → Cuelinks API (only for supported stores)
 - Shortens URLs via TinyURL
 - Posts everything to your Telegram channel
 """
@@ -24,59 +24,87 @@ CUELINKS_API_KEY = os.environ.get("CUELINKS_API_KEY", "").strip()
 SESSION_STRING   = os.environ["TELEGRAM_SESSION_STRING"].strip()
 STATE_FILE       = "last_seen.json"
 SEEN_FILE        = "seen_web.json"
-MAX_WEB_PER_RUN  = 5   # max new deals per website per run
+MAX_WEB_PER_RUN  = 5
 
 HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
                   'Chrome/120.0.0.0 Safari/537.36',
     'Accept-Language': 'en-IN,en;q=0.9',
 }
+
+# Only try Cuelinks for these domains — skip everything else
+CUELINKS_DOMAINS = {
+    'flipkart.com', 'myntra.com', 'ajio.com', 'nykaa.com',
+    'tatacliq.com', 'shopsy.in', 'meesho.com', 'jiomart.com',
+    'croma.com', 'vijaysales.com', 'reliancedigital.com',
+}
 # ─────────────────────────────────────────────────────────────────────────────
 
 
 # ── URL helpers ───────────────────────────────────────────────────────────────
 
+def is_amazon(url):
+    return bool(re.search(r'amazon\.in|amazon\.com|amzn\.to|amzn\.in|a\.co/', url))
+
+def is_cuelinks_supported(url):
+    return any(d in url for d in CUELINKS_DOMAINS)
+
+def inject_amazon_tag(url, tag):
+    # Remove any existing tag
+    url = re.sub(r'[?&]tag=[^&]*', '', url)
+    url = re.sub(r'[?&]ascsubtag=[^&]*', '', url)
+    sep = '&' if '?' in url else '?'
+    return f"{url}{sep}tag={tag}"
+
 def expand_short_url(url):
     try:
-        r = requests.head(url, allow_redirects=True, timeout=10, headers=HEADERS)
+        r = requests.head(url, allow_redirects=True, timeout=8, headers=HEADERS)
         return r.url
     except Exception:
         return url
 
-def inject_amazon_tag(url, tag):
-    url = re.sub(r'([&?])tag=[^&]*', '', url)
-    sep = '&' if '?' in url else '?'
-    return f"{url}{sep}tag={tag}"
-
-def is_amazon(url):
-    return bool(re.match(
-        r'https?://(?:www\.)?(?:amazon\.in|amazon\.com|amzn\.to|amzn\.in|a\.co)', url))
-
 def process_amazon_url(url):
+    """Handle amazon + short amazon links. No API call needed."""
+    # Expand short links first
+    if re.search(r'amzn\.to|amzn\.in|a\.co/', url):
+        url = expand_short_url(url)
     if not is_amazon(url):
         return None
-    full = expand_short_url(url)
-    full = re.sub(r'/ref=[^?&]*', '', full)
-    return inject_amazon_tag(full, AMAZON_AFFILIATE)
+    # Clean ref and inject our tag
+    url = re.sub(r'/ref=[^/?&]*', '', url)
+    return inject_amazon_tag(url, AMAZON_AFFILIATE)
 
 def process_cuelinks_url(url):
-    if not CUELINKS_API_KEY or is_amazon(url):
+    """Only call Cuelinks for whitelisted stores."""
+    if not CUELINKS_API_KEY:
         return None
+    if not is_cuelinks_supported(url):
+        return None
+    # Expand short links
+    if len(url) < 60 and not any(d in url for d in CUELINKS_DOMAINS):
+        url = expand_short_url(url)
     try:
-        expanded = expand_short_url(url)
-        resp = requests.get('https://api.cuelinks.com/v1/affiliate-url',
-                            params={'apiKey': CUELINKS_API_KEY, 'url': expanded}, timeout=10)
+        resp = requests.get(
+            'https://api.cuelinks.com/v1/affiliate-url',
+            params={'apiKey': CUELINKS_API_KEY, 'url': url},
+            timeout=10
+        )
         if resp.status_code == 200:
             data = resp.json()
             aff = data.get('affiliateUrl') or data.get('url')
-            if aff and aff != expanded:
+            if aff and aff != url:
                 return aff
     except Exception as e:
         print(f"    Cuelinks error: {e}")
     return None
 
 def make_affiliate(url):
-    return process_amazon_url(url) or process_cuelinks_url(url)
+    """Return affiliate URL or None if not a monetizable link."""
+    if is_amazon(url) or re.search(r'amzn\.to|amzn\.in|a\.co/', url):
+        return process_amazon_url(url)
+    if is_cuelinks_supported(url):
+        return process_cuelinks_url(url)
+    return None  # skip images, swiggy, zepto, play store, etc.
 
 def shorten_url(url):
     try:
@@ -91,7 +119,7 @@ def extract_urls(text):
     return re.findall(r'https?://[^\s\)\]>\"\']+', text or '')
 
 def rewrite_message(text):
-    """Replace all links in a Telegram message with affiliate versions."""
+    """Replace monetizable links in a Telegram message with affiliate versions."""
     urls = extract_urls(text)
     modified = False
     new_text = text
@@ -120,24 +148,60 @@ class Deal:
 # ── Scrapers ──────────────────────────────────────────────────────────────────
 
 def scrape_desidime():
+    """
+    desidime.com — deals page
+    Structure: <li class="deal-item"> contains title <a> and store link
+    """
     deals = []
     try:
         r = requests.get('https://www.desidime.com/deals', headers=HEADERS, timeout=15)
         soup = BeautifulSoup(r.text, 'html.parser')
-        for item in soup.select('li.deal-item, div.deal-item, .sdealitem')[:30]:
-            title_el = item.select_one('a.title, h2 a, h3 a, .deal-title a')
-            link_el  = item.select_one('a.btn-go-to-store, a.go-to-store, a[href*="go/"]')
+
+        # Try multiple known selectors
+        items = (
+            soup.select('li.deal-item') or
+            soup.select('div.deal-item') or
+            soup.select('.sdeal') or
+            soup.select('article')
+        )
+        print(f"  desidime: {len(items)} containers found")
+
+        for item in items[:40]:
+            # Title
+            title_el = (
+                item.select_one('a.title') or
+                item.select_one('h2 a') or
+                item.select_one('h3 a') or
+                item.select_one('.deal-title a') or
+                item.select_one('a[href*="/deals/"]')
+            )
+            # Buy link (actual store)
+            link_el = (
+                item.select_one('a[href*="amazon"]') or
+                item.select_one('a[href*="flipkart"]') or
+                item.select_one('a[href*="myntra"]') or
+                item.select_one('a[href*="ajio"]') or
+                item.select_one('a.btn-go-to-store') or
+                item.select_one('a.go-to-store')
+            )
+
             if not title_el:
                 continue
             title = title_el.get_text(strip=True)
-            url   = link_el['href'] if link_el else title_el.get('href', '')
-            if url and not url.startswith('http'):
+            if not title or len(title) < 5:
+                continue
+
+            url = link_el['href'] if link_el else title_el.get('href', '')
+            if not url:
+                continue
+            if not url.startswith('http'):
                 url = 'https://www.desidime.com' + url
-            if title and url:
-                deals.append(Deal(title, url, 'desidime'))
+
+            deals.append(Deal(title, url, 'desidime'))
+
     except Exception as e:
         print(f"  desidime error: {e}")
-    print(f"  desidime: {len(deals)} found")
+    print(f"  desidime: {len(deals)} deals parsed")
     return deals
 
 
@@ -146,9 +210,31 @@ def scrape_freekaamaal():
     try:
         r = requests.get('https://www.freekaamaal.com/', headers=HEADERS, timeout=15)
         soup = BeautifulSoup(r.text, 'html.parser')
-        for item in soup.select('article, .deal-box, .td-item-block')[:30]:
-            title_el = item.select_one('h2 a, h3 a, .entry-title a, .td-module-title a')
-            link_el  = item.select_one('a.dealBtn, a.btn-deal, a[href*="amazon"], a[href*="flipkart"]')
+
+        items = (
+            soup.select('article.jeg_post') or
+            soup.select('article') or
+            soup.select('.deal-box') or
+            soup.select('.td-item-block') or
+            soup.select('.jeg_block_wrap .jeg_post')
+        )
+        print(f"  freekaamaal: {len(items)} containers found")
+
+        for item in items[:40]:
+            title_el = (
+                item.select_one('h3.jeg_post_title a') or
+                item.select_one('h2 a') or
+                item.select_one('h3 a') or
+                item.select_one('.entry-title a') or
+                item.select_one('.td-module-title a')
+            )
+            link_el = (
+                item.select_one('a[href*="amazon"]') or
+                item.select_one('a[href*="flipkart"]') or
+                item.select_one('a[href*="myntra"]') or
+                item.select_one('a.dealBtn') or
+                item.select_one('a.btn-deal')
+            )
             if not title_el:
                 continue
             title = title_el.get_text(strip=True)
@@ -156,9 +242,10 @@ def scrape_freekaamaal():
             if not url or not url.startswith('http'):
                 continue
             deals.append(Deal(title, url, 'freekaamaal'))
+
     except Exception as e:
         print(f"  freekaamaal error: {e}")
-    print(f"  freekaamaal: {len(deals)} found")
+    print(f"  freekaamaal: {len(deals)} deals parsed")
     return deals
 
 
@@ -167,9 +254,28 @@ def scrape_dealsmagnet():
     try:
         r = requests.get('https://dealsmagnet.com/', headers=HEADERS, timeout=15)
         soup = BeautifulSoup(r.text, 'html.parser')
-        for item in soup.select('article, .deal, .post, .product-item')[:30]:
-            title_el = item.select_one('h2 a, h3 a, .entry-title a, .title a')
-            link_el  = item.select_one('a[href*="amazon"], a[href*="flipkart"], a.buy-btn, a.deal-link')
+
+        items = (
+            soup.select('article') or
+            soup.select('.deal') or
+            soup.select('.post') or
+            soup.select('.product-item')
+        )
+        print(f"  dealsmagnet: {len(items)} containers found")
+
+        for item in items[:40]:
+            title_el = (
+                item.select_one('h2 a') or
+                item.select_one('h3 a') or
+                item.select_one('.entry-title a') or
+                item.select_one('.title a')
+            )
+            link_el = (
+                item.select_one('a[href*="amazon"]') or
+                item.select_one('a[href*="flipkart"]') or
+                item.select_one('a.buy-btn') or
+                item.select_one('a.deal-link')
+            )
             if not title_el:
                 continue
             title = title_el.get_text(strip=True)
@@ -177,9 +283,10 @@ def scrape_dealsmagnet():
             if not url or not url.startswith('http'):
                 continue
             deals.append(Deal(title, url, 'dealsmagnet'))
+
     except Exception as e:
         print(f"  dealsmagnet error: {e}")
-    print(f"  dealsmagnet: {len(deals)} found")
+    print(f"  dealsmagnet: {len(deals)} deals parsed")
     return deals
 
 
@@ -188,9 +295,26 @@ def scrape_lootdunia():
     try:
         r = requests.get('https://lootdunia.com/', headers=HEADERS, timeout=15)
         soup = BeautifulSoup(r.text, 'html.parser')
-        for item in soup.select('article, .post, .deal-item, .loot-item')[:30]:
-            title_el = item.select_one('h2 a, h3 a, .entry-title a, .post-title a')
-            link_el  = item.select_one('a[href*="amazon"], a[href*="flipkart"], a.buy-now, a.grab-deal')
+
+        items = (
+            soup.select('article') or
+            soup.select('.post') or
+            soup.select('.deal-item')
+        )
+        print(f"  lootdunia: {len(items)} containers found")
+
+        for item in items[:40]:
+            title_el = (
+                item.select_one('h2 a') or
+                item.select_one('h3 a') or
+                item.select_one('.entry-title a')
+            )
+            link_el = (
+                item.select_one('a[href*="amazon"]') or
+                item.select_one('a[href*="flipkart"]') or
+                item.select_one('a.buy-now') or
+                item.select_one('a.grab-deal')
+            )
             if not title_el:
                 continue
             title = title_el.get_text(strip=True)
@@ -198,9 +322,10 @@ def scrape_lootdunia():
             if not url or not url.startswith('http'):
                 continue
             deals.append(Deal(title, url, 'lootdunia'))
+
     except Exception as e:
         print(f"  lootdunia error: {e}")
-    print(f"  lootdunia: {len(deals)} found")
+    print(f"  lootdunia: {len(deals)} deals parsed")
     return deals
 
 
@@ -252,6 +377,7 @@ async def run():
     total   = 0
 
     print(f"Amazon: {AMAZON_AFFILIATE} | Cuelinks: {'on' if CUELINKS_API_KEY else 'off'}")
+    print(f"Cuelinks will only run for: {', '.join(sorted(CUELINKS_DOMAINS))}")
 
     # ── 1. Scrape deal websites ──────────────────────────────────────────────
     print("\n── Websites ──")
@@ -271,7 +397,7 @@ async def run():
                 continue
             aff = make_affiliate(deal.url)
             if not aff:
-                seen.add(deal.uid)   # mark as seen so we skip it next time too
+                seen.add(deal.uid)  # skip non-monetizable
                 continue
             short = shorten_url(aff)
             msg   = deal.to_telegram(YOUR_CHANNEL, short)
@@ -303,6 +429,7 @@ async def run():
                         if msg.id > new_last_id:
                             new_last_id = msg.id
                         continue
+
                     new_text, modified = rewrite_message(text)
                     if modified:
                         new_text += f"\n\n🛒 Deals by @{YOUR_CHANNEL}"
