@@ -453,3 +453,9 @@ async def run():
 
 if __name__ == '__main__':
     asyncio.run(run())
+
+if total == 0:
+    requests.post(bot_api, json={
+        'chat_id': 'YOUR_PERSONAL_TELEGRAM_ID',  # not the channel, your personal ID
+        'text': '⚠️ Bot ran but posted 0 deals. Check GitHub Actions logs.'
+    }, timeout=10)
