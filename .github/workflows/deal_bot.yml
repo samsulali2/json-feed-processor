@@ -2,7 +2,8 @@ name: Deal Bot
 
 on:
   schedule:
-    - cron: "*/10 3-17 * * *"   # 8:30 AM – 10:30 PM IST every 10 min
+    - cron: "*/20 2-11 * * *"   # every 20 min — 8AM to 5PM IST
+    - cron: "*/15 12-16 * * *"  # every 15 min — 6PM to 10PM IST
   workflow_dispatch:
 
 jobs:
