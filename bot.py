@@ -1,16 +1,14 @@
 """
 Telegram Affiliate Deal Bot
-- Scrapes deals from: desidime.com, freekaamaal.com, dealsmagnet.com, lootdunia.com
+- Scrapes: desidime.com, freekaamaal.com, dealsmagnet.com, lootdunia.com
 - Also reads Telegram source channels
-- Amazon links  → Amazon Associates affiliate tag
-- Flipkart etc  → Cuelinks API
-- Shortens URLs → TinyURL
-- Posts to your Telegram channel
-- Saves deals to deals.json for the website
+- Amazon  → Amazon Associates tag
+- Others  → Cuelinks API
+- Shortens URLs via TinyURL
+- Posts everything to your Telegram channel
 """
 
 import os, re, json, asyncio, requests, hashlib
-from datetime import datetime, timezone
 from bs4 import BeautifulSoup
 from telethon import TelegramClient
 from telethon.sessions import StringSession
@@ -25,10 +23,8 @@ AMAZON_AFFILIATE = os.environ["AMAZON_AFFILIATE_ID"].strip()
 CUELINKS_API_KEY = os.environ.get("CUELINKS_API_KEY", "").strip()
 SESSION_STRING   = os.environ["TELEGRAM_SESSION_STRING"].strip()
 STATE_FILE       = "last_seen.json"
-DEALS_FILE       = "deals.json"
 SEEN_FILE        = "seen_web.json"
-MAX_DEALS_STORED = 200
-MAX_WEB_PER_RUN  = 5
+MAX_WEB_PER_RUN  = 5   # max new deals per website per run
 
 HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
@@ -53,7 +49,8 @@ def inject_amazon_tag(url, tag):
     return f"{url}{sep}tag={tag}"
 
 def is_amazon(url):
-    return bool(re.match(r'https?://(?:www\.)?(?:amazon\.in|amazon\.com|amzn\.to|amzn\.in|a\.co)', url))
+    return bool(re.match(
+        r'https?://(?:www\.)?(?:amazon\.in|amazon\.com|amzn\.to|amzn\.in|a\.co)', url))
 
 def process_amazon_url(url):
     if not is_amazon(url):
@@ -94,22 +91,20 @@ def extract_urls(text):
     return re.findall(r'https?://[^\s\)\]>\"\']+', text or '')
 
 def rewrite_message(text):
+    """Replace all links in a Telegram message with affiliate versions."""
     urls = extract_urls(text)
     modified = False
     new_text = text
-    first_url = None
     for url in urls:
         aff = make_affiliate(url)
         if aff and aff != url:
             short = shorten_url(aff)
             new_text = new_text.replace(url, short)
             modified = True
-            if not first_url:
-                first_url = short
-    return new_text, modified, first_url
+    return new_text, modified
 
 
-# ── Web scrapers ──────────────────────────────────────────────────────────────
+# ── Deal class ────────────────────────────────────────────────────────────────
 
 class Deal:
     def __init__(self, title, url, source):
@@ -121,6 +116,8 @@ class Deal:
     def to_telegram(self, channel, short_url):
         return f"🔥 {self.title}\n\n🔗 {short_url}\n\n🛒 Deals by @{channel}"
 
+
+# ── Scrapers ──────────────────────────────────────────────────────────────────
 
 def scrape_desidime():
     deals = []
@@ -134,7 +131,7 @@ def scrape_desidime():
                 continue
             title = title_el.get_text(strip=True)
             url   = link_el['href'] if link_el else title_el.get('href', '')
-            if not url.startswith('http'):
+            if url and not url.startswith('http'):
                 url = 'https://www.desidime.com' + url
             if title and url:
                 deals.append(Deal(title, url, 'desidime'))
@@ -215,7 +212,7 @@ SCRAPERS = {
 }
 
 
-# ── Seen / State / Deals helpers ──────────────────────────────────────────────
+# ── State helpers ─────────────────────────────────────────────────────────────
 
 def load_seen():
     if os.path.exists(SEEN_FILE):
@@ -226,24 +223,6 @@ def load_seen():
 def save_seen(seen):
     with open(SEEN_FILE, 'w') as f:
         json.dump(list(seen)[-2000:], f)
-
-def load_deals():
-    if os.path.exists(DEALS_FILE):
-        with open(DEALS_FILE) as f:
-            return json.load(f)
-    return []
-
-def append_deal(deals, text, url, source):
-    deals.insert(0, {
-        'text':      text,
-        'url':       url,
-        'source':    source,
-        'timestamp': datetime.now(timezone.utc).isoformat()
-    })
-    deals = deals[:MAX_DEALS_STORED]
-    with open(DEALS_FILE, 'w') as f:
-        json.dump(deals, f, ensure_ascii=False, indent=2)
-    return deals
 
 def load_state():
     if os.path.exists(STATE_FILE):
@@ -267,15 +246,14 @@ def post_telegram(bot_api, text):
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 async def run():
-    state  = load_state()
-    deals  = load_deals()
-    seen   = load_seen()
+    state   = load_state()
+    seen    = load_seen()
     bot_api = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-    total  = 0
+    total   = 0
 
     print(f"Amazon: {AMAZON_AFFILIATE} | Cuelinks: {'on' if CUELINKS_API_KEY else 'off'}")
 
-    # ── 1. Website scrapers ──────────────────────────────────────────────────
+    # ── 1. Scrape deal websites ──────────────────────────────────────────────
     print("\n── Websites ──")
     for site_name, scraper in SCRAPERS.items():
         print(f"\n[{site_name}]")
@@ -293,21 +271,20 @@ async def run():
                 continue
             aff = make_affiliate(deal.url)
             if not aff:
-                seen.add(deal.uid)
+                seen.add(deal.uid)   # mark as seen so we skip it next time too
                 continue
             short = shorten_url(aff)
             msg   = deal.to_telegram(YOUR_CHANNEL, short)
             ok, resp = post_telegram(bot_api, msg)
             if ok:
-                print(f"  ✅ {deal.title[:55]}")
+                print(f"  ✅ {deal.title[:60]}")
                 seen.add(deal.uid)
-                deals = append_deal(deals, msg, short, site_name)
                 posted += 1
                 total  += 1
             else:
-                print(f"  ❌ {resp[:60]}")
+                print(f"  ❌ {resp[:80]}")
 
-    # ── 2. Telegram channels ─────────────────────────────────────────────────
+    # ── 2. Telegram source channels ──────────────────────────────────────────
     print("\n── Telegram channels ──")
     async with TelegramClient(StringSession(SESSION_STRING), API_ID, API_HASH) as client:
         for channel in SOURCE_CHANNELS:
@@ -326,17 +303,16 @@ async def run():
                         if msg.id > new_last_id:
                             new_last_id = msg.id
                         continue
-                    new_text, modified, aff_url = rewrite_message(text)
+                    new_text, modified = rewrite_message(text)
                     if modified:
                         new_text += f"\n\n🛒 Deals by @{YOUR_CHANNEL}"
                         ok, resp = post_telegram(bot_api, new_text)
                         if ok:
                             print(f"  ✅ msg {msg.id}")
-                            deals = append_deal(deals, new_text, aff_url, channel)
                             found += 1
                             total += 1
                         else:
-                            print(f"  ❌ {resp[:60]}")
+                            print(f"  ❌ {resp[:80]}")
                     if msg.id > new_last_id:
                         new_last_id = msg.id
             except Exception as e:
@@ -346,7 +322,7 @@ async def run():
 
     save_state(state)
     save_seen(seen)
-    print(f"\n✅ This run: {total} posted | Website total: {len(deals)}")
+    print(f"\n✅ Total posted this run: {total}")
 
 if __name__ == '__main__':
     asyncio.run(run())
