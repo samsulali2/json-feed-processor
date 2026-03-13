@@ -1,10 +1,8 @@
-name: Telegram Affiliate Deal Bot
+name: Deal Bot + Website
 
 on:
   schedule:
-    # Runs every 10 minutes between 9AM and 11PM IST
-    # IST = UTC + 5:30, so 9AM IST = 3:30 UTC, 11PM IST = 17:30 UTC
-    - cron: "*/10 3-17 * * *"   # 3AM to 5PM UTC = 8:30AM to 10:30PM IST (close enough)
+    - cron: "*/10 3-17 * * *"   # 8:30 AM – 10:30 PM IST every 10 min
   workflow_dispatch:
 
 jobs:
@@ -15,19 +13,24 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
+      - name: Restore cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            last_seen.json
+            deals.json
+            seen_web.json
+          key: bot-state-v2-${{ github.run_id }}
+          restore-keys: |
+            bot-state-v2-
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
       - name: Install dependencies
-        run: pip install telethon requests
-
-      - name: Restore state cache
-        uses: actions/cache/restore@v4
-        with:
-          path: last_seen.json
-          key: last-seen-state-v1
+        run: pip install telethon requests beautifulsoup4
 
       - name: Run bot
         env:
@@ -38,11 +41,26 @@ jobs:
           YOUR_CHANNEL_USERNAME: ${{ secrets.YOUR_CHANNEL_USERNAME }}
           SOURCE_CHANNELS: ${{ secrets.SOURCE_CHANNELS }}
           AMAZON_AFFILIATE_ID: ${{ secrets.AMAZON_AFFILIATE_ID }}
-          FLIPKART_AFFILIATE_ID: ${{ secrets.FLIPKART_AFFILIATE_ID }}
+          CUELINKS_API_KEY: ${{ secrets.CUELINKS_API_KEY }}
         run: python bot.py
 
-      - name: Save state cache
+      - name: Save cache
         uses: actions/cache/save@v4
+        if: always()
         with:
-          path: last_seen.json
-          key: last-seen-state-v1-${{ github.run_id }}
+          path: |
+            last_seen.json
+            deals.json
+            seen_web.json
+          key: bot-state-v2-${{ github.run_id }}
+
+      - name: Publish deals to GitHub Pages
+        if: always()
+        run: |
+          git config user.name "Deal Bot"
+          git config user.email "bot@deals"
+          git add deals.json index.html || true
+          git diff --cached --quiet || git commit -m "🤖 Update deals [skip ci]"
+          git push origin HEAD
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
