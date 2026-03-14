@@ -1,3 +1,4 @@
+```python
 import os
 import re
 import json
@@ -323,53 +324,58 @@ async def one_run():
 
     for channel in SOURCE_CHANNELS:
 
-        last_id = state.get(channel, 0)
+        try:
 
-        new_last = last_id
+            last_id = state.get(channel, 0)
+            new_last = last_id
 
-        async for msg in client.iter_messages(channel, min_id=last_id, limit=50):
+            async for msg in client.iter_messages(channel, min_id=last_id, limit=50):
 
-            text = msg.text or msg.caption or ""
+                text = msg.text or msg.caption or ""
 
-            urls = extract_urls(text)
+                urls = extract_urls(text)
 
-            for url in urls:
+                for url in urls:
 
-                if "amzn.to" in url:
-                    url = expand_short_url(url)
+                    if "amzn.to" in url:
+                        url = expand_short_url(url)
 
-                aff = make_affiliate(url)
+                    aff = make_affiliate(url)
 
-                if not aff:
-                    continue
+                    if not aff:
+                        continue
 
-                asin = extract_asin(url)
+                    asin = extract_asin(url)
 
-                if asin:
-                    uid = f"asin_{asin}"
-                else:
-                    uid = hashlib.md5(url.encode()).hexdigest()[:12]
+                    if asin:
+                        uid = f"asin_{asin}"
+                    else:
+                        uid = hashlib.md5(url.encode()).hexdigest()[:12]
 
-                if uid in seen:
-                    continue
+                    if uid in seen:
+                        continue
 
-                new_text = text.replace(url, aff)
-                new_text += f"\n\n🛒 Deals by @{YOUR_CHANNEL}"
+                    new_text = text.replace(url, aff)
+                    new_text += f"\n\n🛒 Deals by @{YOUR_CHANNEL}"
 
-                if post_telegram(new_text):
+                    if post_telegram(new_text):
 
-                    print("posted telegram deal")
+                        print(f"posted telegram deal from {channel}")
 
-                    seen.add(uid)
+                        seen.add(uid)
 
-                    total += 1
+                        total += 1
 
-                    await asyncio.sleep(2)
+                        await asyncio.sleep(2)
 
-            if msg.id > new_last:
-                new_last = msg.id
+                if msg.id > new_last:
+                    new_last = msg.id
 
-        state[channel] = new_last
+            state[channel] = new_last
+
+        except Exception as e:
+
+            print(f"Skipping channel {channel} — error: {e}")
 
     await client.disconnect()
 
@@ -393,3 +399,4 @@ async def main():
 if __name__ == "__main__":
 
     asyncio.run(main())
+```
