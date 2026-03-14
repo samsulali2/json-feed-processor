@@ -1,0 +1,23 @@
+services:
+  - type: worker
+    name: deal-bot
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python bot.py
+    envVars:
+      - key: TELEGRAM_API_ID
+        sync: false
+      - key: TELEGRAM_API_HASH
+        sync: false
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: TELEGRAM_SESSION_STRING
+        sync: false
+      - key: YOUR_CHANNEL_USERNAME
+        sync: false
+      - key: SOURCE_CHANNELS
+        sync: false
+      - key: AMAZON_AFFILIATE_ID
+        sync: false
+      - key: CUELINKS_API_KEY
+        sync: false
