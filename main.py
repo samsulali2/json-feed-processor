@@ -1,3 +1,4 @@
+```python
 import os
 import re
 import json
@@ -7,6 +8,8 @@ import hashlib
 from bs4 import BeautifulSoup
 from telethon import TelegramClient
 from telethon.sessions import StringSession
+
+# ---------------- CONFIG ----------------
 
 API_ID = int(os.environ["A1"])
 API_HASH = os.environ["A2"]
@@ -29,7 +32,14 @@ HEADERS = {
 MAX_WEB_PER_RUN = 5
 
 
-# ---------- URL HELPERS ----------
+# ---------------- TEXT CLEANING ----------------
+
+def clean_html(text):
+    text = re.sub(r"<.*?>", "", text)
+    return text.strip()
+
+
+# ---------------- URL HELPERS ----------------
 
 def extract_asin(url):
     m = re.search(r"/(?:dp|gp/product)/([A-Z0-9]{10})", url)
@@ -85,7 +95,7 @@ def extract_urls(text):
     return re.findall(r"https?://[^\s]+", text or "")
 
 
-# ---------- STATE ----------
+# ---------------- STATE ----------------
 
 def load_seen():
     if os.path.exists(SEEN_FILE):
@@ -111,7 +121,7 @@ def save_state(state):
         json.dump(state, f)
 
 
-# ---------- TELEGRAM POST ----------
+# ---------------- TELEGRAM POST ----------------
 
 def post_telegram(text):
 
@@ -128,13 +138,13 @@ def post_telegram(text):
     return r.status_code == 200
 
 
-# ---------- DEAL CLASS ----------
+# ---------------- DEAL OBJECT ----------------
 
 class Deal:
 
     def __init__(self, title, url):
 
-        self.title = title.strip()[:300]
+        self.title = clean_html(title)[:300]
 
         asin = extract_asin(url)
 
@@ -146,7 +156,7 @@ class Deal:
         self.url = normalize_url(url)
 
 
-# ---------- SCRAPERS ----------
+# ---------------- SCRAPERS ----------------
 
 def scrape_desidime():
 
@@ -181,7 +191,7 @@ def scrape_desidime():
             deals.append(Deal(title, url))
 
     except Exception as e:
-        print("desidime error", e)
+        print("desidime error:", e)
 
     return deals
 
@@ -209,47 +219,18 @@ def scrape_freekaamaal():
                 deals.append(Deal(title, url))
 
     except Exception as e:
-        print("freekaamaal error", e)
-
-    return deals
-
-
-def scrape_lootdunia():
-
-    deals = []
-
-    try:
-
-        r = requests.get(
-            "https://lootdunia.com/",
-            headers=HEADERS,
-            timeout=15
-        )
-
-        soup = BeautifulSoup(r.text, "html.parser")
-
-        for a in soup.select("article h2 a")[:30]:
-
-            title = a.get_text(strip=True)
-            url = a.get("href")
-
-            if url:
-                deals.append(Deal(title, url))
-
-    except Exception as e:
-        print("lootdunia error", e)
+        print("freekaamaal error:", e)
 
     return deals
 
 
 SCRAPERS = [
     scrape_desidime,
-    scrape_freekaamaal,
-    scrape_lootdunia
+    scrape_freekaamaal
 ]
 
 
-# ---------- ONE RUN ----------
+# ---------------- MAIN RUN ----------------
 
 async def one_run():
 
@@ -266,7 +247,8 @@ async def one_run():
 
         try:
             deals = scraper()
-        except:
+        except Exception as e:
+            print("scraper failed:", e)
             continue
 
         posted = 0
@@ -298,7 +280,6 @@ async def one_run():
 
                 await asyncio.sleep(2)
 
-
     print("Checking telegram channels")
 
     client = TelegramClient(
@@ -316,9 +297,11 @@ async def one_run():
             last_id = state.get(channel, 0)
             new_last = last_id
 
-            async for msg in client.iter_messages(channel, min_id=last_id, limit=50):
+            async for msg in client.iter_messages(channel, min_id=last_id, limit=100):
 
                 text = getattr(msg, "text", "") or getattr(msg, "caption", "") or ""
+
+                text = clean_html(text)
 
                 urls = extract_urls(text)
 
@@ -360,7 +343,7 @@ async def one_run():
 
         except Exception as e:
 
-            print(f"Skipping channel {channel} — error: {e}")
+            print(f"Skipping channel {channel} — error:", e)
 
     await client.disconnect()
 
@@ -370,7 +353,7 @@ async def one_run():
     print("Run finished:", total)
 
 
-# ---------- MAIN ----------
+# ---------------- MAIN ----------------
 
 async def main():
 
@@ -384,3 +367,4 @@ async def main():
 if __name__ == "__main__":
 
     asyncio.run(main())
+```
