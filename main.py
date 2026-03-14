@@ -1,3 +1,4 @@
+```python
 import os
 import re
 import json
@@ -33,9 +34,7 @@ MAX_WEB_PER_RUN = 5
 
 def extract_asin(url):
     m = re.search(r"/(?:dp|gp/product)/([A-Z0-9]{10})", url)
-    if m:
-        return m.group(1)
-    return None
+    return m.group(1) if m else None
 
 
 def expand_short_url(url):
@@ -67,10 +66,8 @@ def process_amazon(url):
             f"https://tinyurl.com/api-create.php?url={aff}",
             timeout=8
         )
-
         if r.status_code == 200:
             return r.text.strip()
-
     except:
         pass
 
@@ -92,33 +89,25 @@ def extract_urls(text):
 # ---------- STATE ----------
 
 def load_seen():
-
     if os.path.exists(SEEN_FILE):
-
         with open(SEEN_FILE) as f:
             return set(json.load(f))
-
     return set()
 
 
 def save_seen(seen):
-
     with open(SEEN_FILE, "w") as f:
         json.dump(list(seen)[-2000:], f)
 
 
 def load_state():
-
     if os.path.exists(STATE_FILE):
-
         with open(STATE_FILE) as f:
             return json.load(f)
-
     return {}
 
 
 def save_state(state):
-
     with open(STATE_FILE, "w") as f:
         json.dump(state, f)
 
@@ -128,15 +117,12 @@ def save_state(state):
 def post_telegram(text):
 
     r = requests.post(
-
         f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
-
         json={
             "chat_id": f"@{YOUR_CHANNEL}",
             "text": text,
             "disable_web_page_preview": False
         },
-
         timeout=15
     )
 
@@ -271,6 +257,8 @@ async def one_run():
     seen = load_seen()
     state = load_state()
 
+    posted_this_run = set()
+
     total = 0
 
     print("Checking websites")
@@ -289,7 +277,7 @@ async def one_run():
             if posted >= MAX_WEB_PER_RUN:
                 break
 
-            if deal.uid in seen:
+            if deal.uid in seen or deal.uid in posted_this_run:
                 continue
 
             aff = make_affiliate(deal.url)
@@ -299,11 +287,12 @@ async def one_run():
 
             msg = f"🔥 {deal.title}\n\n🔗 {aff}\n\n🛒 Deals by @{YOUR_CHANNEL}"
 
+            posted_this_run.add(deal.uid)
+            seen.add(deal.uid)
+
             if post_telegram(msg):
 
                 print("posted", deal.title[:60])
-
-                seen.add(deal.uid)
 
                 posted += 1
                 total += 1
@@ -346,22 +335,20 @@ async def one_run():
 
                     asin = extract_asin(url)
 
-                    if asin:
-                        uid = f"asin_{asin}"
-                    else:
-                        uid = hashlib.md5(url.encode()).hexdigest()[:12]
+                    uid = f"asin_{asin}" if asin else hashlib.md5(url.encode()).hexdigest()[:12]
 
-                    if uid in seen:
+                    if uid in seen or uid in posted_this_run:
                         continue
 
                     new_text = text.replace(url, aff)
                     new_text += f"\n\n🛒 Deals by @{YOUR_CHANNEL}"
 
+                    posted_this_run.add(uid)
+                    seen.add(uid)
+
                     if post_telegram(new_text):
 
                         print(f"posted telegram deal from {channel}")
-
-                        seen.add(uid)
 
                         total += 1
 
@@ -398,3 +385,4 @@ async def main():
 if __name__ == "__main__":
 
     asyncio.run(main())
+```
