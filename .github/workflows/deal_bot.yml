@@ -15,14 +15,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/cache/restore@v4
+      - name: Restore state cache
+        uses: actions/cache/restore@v4
         with:
           path: |
             last_seen.json
             seen_web.json
-          key: cache-v2-${{ github.run_id }}
+          key: data-sync-state
           restore-keys: |
-            cache-v2-
+            data-sync-
 
       - uses: actions/setup-python@v5
         with:
@@ -30,7 +31,8 @@ jobs:
 
       - run: pip install -r requirements.txt
 
-      - run: python main.py
+      - name: Run bot
+        run: python main.py
         env:
           A1: ${{ secrets.TELEGRAM_API_ID }}
           A2: ${{ secrets.TELEGRAM_API_HASH }}
@@ -41,10 +43,11 @@ jobs:
           A7: ${{ secrets.AMAZON_AFFILIATE_ID }}
           A8: ${{ secrets.CUELINKS_API_KEY }}
 
-      - uses: actions/cache/save@v4
+      - name: Save state cache
+        uses: actions/cache/save@v4
         if: always()
         with:
           path: |
             last_seen.json
             seen_web.json
-          key: cache-v2-${{ github.run_id }}
+          key: data-sync-state-${{ github.run_number }}
