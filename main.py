@@ -1,3 +1,4 @@
+```python
 import os
 import re
 import json
@@ -12,34 +13,30 @@ API_ID = int(os.environ["A1"])
 API_HASH = os.environ["A2"]
 BOT_TOKEN = os.environ["A3"]
 SESSION_STRING = os.environ["A4"]
+
 YOUR_CHANNEL = os.environ["A5"].strip().lstrip("@")
 SOURCE_CHANNELS = [c.strip().lstrip("@") for c in os.environ["A6"].split(",")]
+
 AMAZON_AFFILIATE = os.environ["A7"].strip()
-CUELINKS_API_KEY = os.environ.get("A8", "").strip()
 
 STATE_FILE = "last_seen.json"
 SEEN_FILE = "seen_web.json"
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0",
-    "Accept-Language": "en-IN,en;q=0.9",
+    "Accept-Language": "en-IN,en;q=0.9"
 }
 
 MAX_WEB_PER_RUN = 5
 
 
-# ---------------- URL HELPERS ----------------
+# ---------- URL HELPERS ----------
 
 def extract_asin(url):
     m = re.search(r"/(?:dp|gp/product)/([A-Z0-9]{10})", url)
     if m:
         return m.group(1)
     return None
-
-
-def normalize_url(url):
-    url = url.split("?")[0]
-    return url.rstrip("/")
 
 
 def expand_short_url(url):
@@ -50,33 +47,42 @@ def expand_short_url(url):
         return url
 
 
-def process_amazon_url(url):
+def normalize_url(url):
+    return url.split("?")[0].rstrip("/")
+
+
+def process_amazon(url):
+
     if "amzn.to" in url:
         url = expand_short_url(url)
 
     asin = extract_asin(url)
-    if asin:
-        clean = f"https://www.amazon.in/dp/{asin}?tag={AMAZON_AFFILIATE}"
-        return clean
 
-    return None
+    if not asin:
+        return None
 
+    aff = f"https://www.amazon.in/dp/{asin}?tag={AMAZON_AFFILIATE}"
 
-def shorten_url(url):
     try:
-        r = requests.get(f"https://tinyurl.com/api-create.php?url={url}", timeout=8)
+        r = requests.get(
+            f"https://tinyurl.com/api-create.php?url={aff}",
+            timeout=8
+        )
+
         if r.status_code == 200:
             return r.text.strip()
+
     except:
         pass
-    return url
+
+    return aff
 
 
 def make_affiliate(url):
+
     if "amazon" in url or "amzn.to" in url:
-        aff = process_amazon_url(url)
-        if aff:
-            return shorten_url(aff)
+        return process_amazon(url)
+
     return None
 
 
@@ -84,72 +90,92 @@ def extract_urls(text):
     return re.findall(r"https?://[^\s]+", text or "")
 
 
-# ---------------- STATE ----------------
+# ---------- STATE ----------
 
 def load_seen():
+
     if os.path.exists(SEEN_FILE):
+
         with open(SEEN_FILE) as f:
             return set(json.load(f))
+
     return set()
 
 
 def save_seen(seen):
+
     with open(SEEN_FILE, "w") as f:
         json.dump(list(seen)[-2000:], f)
 
 
 def load_state():
+
     if os.path.exists(STATE_FILE):
+
         with open(STATE_FILE) as f:
             return json.load(f)
+
     return {}
 
 
 def save_state(state):
+
     with open(STATE_FILE, "w") as f:
         json.dump(state, f)
 
 
-# ---------------- TELEGRAM POST ----------------
+# ---------- TELEGRAM POST ----------
 
 def post_telegram(text):
-    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
 
     r = requests.post(
-        url,
+
+        f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
+
         json={
             "chat_id": f"@{YOUR_CHANNEL}",
             "text": text,
             "disable_web_page_preview": False
         },
-        timeout=15,
+
+        timeout=15
     )
 
     return r.status_code == 200
 
 
-# ---------------- DEAL CLASS ----------------
+# ---------- DEAL CLASS ----------
 
 class Deal:
+
     def __init__(self, title, url):
+
         self.title = title.strip()[:300]
-        self.url = normalize_url(url)
 
         asin = extract_asin(url)
 
         if asin:
             self.uid = f"asin_{asin}"
         else:
-            self.uid = hashlib.md5(self.url.encode()).hexdigest()[:12]
+            self.uid = hashlib.md5(url.encode()).hexdigest()[:12]
+
+        self.url = normalize_url(url)
 
 
-# ---------------- SCRAPER ----------------
+# ---------- SCRAPERS ----------
 
 def scrape_desidime():
+
     deals = []
 
     try:
-        r = requests.get("https://www.desidime.com/deals", headers=HEADERS, timeout=15)
+
+        r = requests.get(
+            "https://www.desidime.com/deals",
+            headers=HEADERS,
+            timeout=15
+        )
+
         soup = BeautifulSoup(r.text, "html.parser")
 
         for item in soup.select("article")[:30]:
@@ -160,15 +186,15 @@ def scrape_desidime():
                 continue
 
             title = a.get_text(strip=True)
-            link = a.get("href")
+            url = a.get("href")
 
-            if not link:
+            if not url:
                 continue
 
-            if not link.startswith("http"):
-                link = "https://www.desidime.com" + link
+            if not url.startswith("http"):
+                url = "https://www.desidime.com" + url
 
-            deals.append(Deal(title, link))
+            deals.append(Deal(title, url))
 
     except Exception as e:
         print("desidime error", e)
@@ -176,12 +202,70 @@ def scrape_desidime():
     return deals
 
 
+def scrape_freekaamaal():
+
+    deals = []
+
+    try:
+
+        r = requests.get(
+            "https://www.freekaamaal.com/",
+            headers=HEADERS,
+            timeout=15
+        )
+
+        soup = BeautifulSoup(r.text, "html.parser")
+
+        for a in soup.select("article h3 a")[:30]:
+
+            title = a.get_text(strip=True)
+            url = a.get("href")
+
+            if url:
+                deals.append(Deal(title, url))
+
+    except Exception as e:
+        print("freekaamaal error", e)
+
+    return deals
+
+
+def scrape_lootdunia():
+
+    deals = []
+
+    try:
+
+        r = requests.get(
+            "https://lootdunia.com/",
+            headers=HEADERS,
+            timeout=15
+        )
+
+        soup = BeautifulSoup(r.text, "html.parser")
+
+        for a in soup.select("article h2 a")[:30]:
+
+            title = a.get_text(strip=True)
+            url = a.get("href")
+
+            if url:
+                deals.append(Deal(title, url))
+
+    except Exception as e:
+        print("lootdunia error", e)
+
+    return deals
+
+
 SCRAPERS = [
-    scrape_desidime
+    scrape_desidime,
+    scrape_freekaamaal,
+    scrape_lootdunia
 ]
 
 
-# ---------------- ONE RUN ----------------
+# ---------- ONE RUN ----------
 
 async def one_run():
 
@@ -190,7 +274,7 @@ async def one_run():
 
     total = 0
 
-    print("Checking websites...")
+    print("Checking websites")
 
     for scraper in SCRAPERS:
 
@@ -216,76 +300,98 @@ async def one_run():
 
             msg = f"🔥 {deal.title}\n\n🔗 {aff}\n\n🛒 Deals by @{YOUR_CHANNEL}"
 
-            ok = post_telegram(msg)
+            if post_telegram(msg):
 
-            if ok:
                 print("posted", deal.title[:60])
+
                 seen.add(deal.uid)
+
                 posted += 1
                 total += 1
 
                 await asyncio.sleep(2)
 
-    print("Checking telegram channels...")
 
-    async with TelegramClient(StringSession(SESSION_STRING), API_ID, API_HASH) as client:
+    print("Checking telegram channels")
 
-        for channel in SOURCE_CHANNELS:
+    client = TelegramClient(
+        StringSession(SESSION_STRING),
+        API_ID,
+        API_HASH
+    )
 
-            last_id = state.get(channel, 0)
-            new_last = last_id
+    await client.connect()
 
-            async for msg in client.iter_messages(channel, min_id=last_id, limit=50):
+    for channel in SOURCE_CHANNELS:
 
-                text = msg.text or msg.caption or ""
+        last_id = state.get(channel, 0)
 
-                if not text:
+        new_last = last_id
+
+        async for msg in client.iter_messages(channel, min_id=last_id, limit=50):
+
+            text = msg.text or msg.caption or ""
+
+            urls = extract_urls(text)
+
+            for url in urls:
+
+                if "amzn.to" in url:
+                    url = expand_short_url(url)
+
+                aff = make_affiliate(url)
+
+                if not aff:
                     continue
 
-                urls = extract_urls(text)
+                asin = extract_asin(url)
 
-                for url in urls:
+                if asin:
+                    uid = f"asin_{asin}"
+                else:
+                    uid = hashlib.md5(url.encode()).hexdigest()[:12]
 
-                    aff = make_affiliate(url)
+                if uid in seen:
+                    continue
 
-                    if not aff:
-                        continue
+                new_text = text.replace(url, aff)
+                new_text += f"\n\n🛒 Deals by @{YOUR_CHANNEL}"
 
-                    uid = extract_asin(url) or hashlib.md5(url.encode()).hexdigest()[:12]
+                if post_telegram(new_text):
 
-                    if uid in seen:
-                        continue
+                    print("posted telegram deal")
 
-                    new_text = text.replace(url, aff)
-                    new_text += f"\n\n🛒 Deals by @{YOUR_CHANNEL}"
+                    seen.add(uid)
 
-                    ok = post_telegram(new_text)
+                    total += 1
 
-                    if ok:
-                        seen.add(uid)
-                        total += 1
-                        print("posted telegram deal")
+                    await asyncio.sleep(2)
 
-                        await asyncio.sleep(2)
+            if msg.id > new_last:
+                new_last = msg.id
 
-                if msg.id > new_last:
-                    new_last = msg.id
+        state[channel] = new_last
 
-            state[channel] = new_last
+    await client.disconnect()
 
-    save_state(state)
     save_seen(seen)
+    save_state(state)
 
-    print("Run finished. Posted:", total)
+    print("Run finished:", total)
 
 
-# ---------------- MAIN ----------------
+# ---------- MAIN ----------
 
 async def main():
+
     print("Bot started")
+
     await one_run()
+
     print("Bot finished")
 
 
 if __name__ == "__main__":
+
     asyncio.run(main())
+```
