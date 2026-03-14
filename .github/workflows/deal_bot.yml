@@ -1,53 +1,46 @@
-name: Deal Bot
+name: data-sync
 
 on:
   schedule:
-    - cron: "*/5 * * * *"   # every 5 min, 24/7
+    - cron: "*/5 * * * *"
   workflow_dispatch:
 
 jobs:
-  run-bot:
+  sync:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Restore cache
-        uses: actions/cache/restore@v4
+      - uses: actions/cache/restore@v4
         with:
           path: |
             last_seen.json
             seen_web.json
-          key: bot-state-v2-${{ github.run_id }}
+          key: cache-v2-${{ github.run_id }}
           restore-keys: |
-            bot-state-v2-
+            cache-v2-
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
-      - name: Install dependencies
-        run: pip install telethon requests beautifulsoup4
+      - run: pip install -r requirements.txt
 
-      - name: Run bot
+      - run: python main.py
         env:
-          TELEGRAM_API_ID: ${{ secrets.TELEGRAM_API_ID }}
-          TELEGRAM_API_HASH: ${{ secrets.TELEGRAM_API_HASH }}
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_SESSION_STRING: ${{ secrets.TELEGRAM_SESSION_STRING }}
-          YOUR_CHANNEL_USERNAME: ${{ secrets.YOUR_CHANNEL_USERNAME }}
-          SOURCE_CHANNELS: ${{ secrets.SOURCE_CHANNELS }}
-          AMAZON_AFFILIATE_ID: ${{ secrets.AMAZON_AFFILIATE_ID }}
-          CUELINKS_API_KEY: ${{ secrets.CUELINKS_API_KEY }}
-        run: python bot.py
+          A1: ${{ secrets.TELEGRAM_API_ID }}
+          A2: ${{ secrets.TELEGRAM_API_HASH }}
+          A3: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          A4: ${{ secrets.TELEGRAM_SESSION_STRING }}
+          A5: ${{ secrets.YOUR_CHANNEL_USERNAME }}
+          A6: ${{ secrets.SOURCE_CHANNELS }}
+          A7: ${{ secrets.AMAZON_AFFILIATE_ID }}
+          A8: ${{ secrets.CUELINKS_API_KEY }}
 
-      - name: Save cache
-        uses: actions/cache/save@v4
+      - uses: actions/cache/save@v4
         if: always()
         with:
           path: |
             last_seen.json
             seen_web.json
-          key: bot-state-v2-${{ github.run_id }}
+          key: cache-v2-${{ github.run_id }}
