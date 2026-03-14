@@ -1,11 +1,17 @@
 name: data-sync
 
 on:
-    workflow_dispatch:
+  workflow_dispatch:
+
+concurrency:
+  group: data-sync
+  cancel-in-progress: true
 
 jobs:
   sync:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+
     steps:
       - uses: actions/checkout@v4
 
