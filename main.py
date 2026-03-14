@@ -318,7 +318,7 @@ async def one_run():
 
             async for msg in client.iter_messages(channel, min_id=last_id, limit=50):
 
-                text = msg.text or msg.caption or ""
+                text = getattr(msg, "text", "") or getattr(msg, "caption", "") or ""
 
                 urls = extract_urls(text)
 
