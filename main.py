@@ -1,3 +1,4 @@
+```python
 import os
 import re
 import json
@@ -8,7 +9,7 @@ from bs4 import BeautifulSoup
 from telethon import TelegramClient
 from telethon.sessions import StringSession
 
-# ---------------- CONFIG ----------------
+# ---------- CONFIG ----------
 
 API_ID = int(os.environ["A1"])
 API_HASH = os.environ["A2"]
@@ -31,14 +32,14 @@ HEADERS = {
 MAX_WEB_PER_RUN = 5
 
 
-# ---------------- TEXT CLEANING ----------------
+# ---------- TEXT CLEANING ----------
 
 def clean_html(text):
     text = re.sub(r"<.*?>", "", text)
     return text.strip()
 
 
-# ---------------- URL HELPERS ----------------
+# ---------- URL HELPERS ----------
 
 def extract_asin(url):
     m = re.search(r"/(?:dp|gp/product)/([A-Z0-9]{10})", url)
@@ -94,7 +95,7 @@ def extract_urls(text):
     return re.findall(r"https?://[^\s]+", text or "")
 
 
-# ---------------- STATE ----------------
+# ---------- STATE ----------
 
 def load_seen():
     if os.path.exists(SEEN_FILE):
@@ -120,7 +121,7 @@ def save_state(state):
         json.dump(state, f)
 
 
-# ---------------- TELEGRAM POST ----------------
+# ---------- TELEGRAM POST ----------
 
 def post_telegram(text):
 
@@ -137,7 +138,7 @@ def post_telegram(text):
     return r.status_code == 200
 
 
-# ---------------- DEAL OBJECT ----------------
+# ---------- DEAL OBJECT ----------
 
 class Deal:
 
@@ -155,7 +156,7 @@ class Deal:
         self.url = normalize_url(url)
 
 
-# ---------------- SCRAPERS ----------------
+# ---------- SCRAPERS ----------
 
 def scrape_desidime():
 
@@ -229,7 +230,7 @@ SCRAPERS = [
 ]
 
 
-# ---------------- MAIN RUN ----------------
+# ---------- MAIN RUN ----------
 
 async def one_run():
 
@@ -279,6 +280,7 @@ async def one_run():
 
                 await asyncio.sleep(2)
 
+
     print("Checking telegram channels")
 
     client = TelegramClient(
@@ -296,11 +298,13 @@ async def one_run():
             last_id = state.get(channel, 0)
             new_last = last_id
 
+            print("Scanning channel:", channel)
+
             async for msg in client.iter_messages(channel, limit=200):
-                print("Reading message from", channel, "ID:", msg.id)
+
                 if msg.id <= last_id:
                     continue
-                
+
                 text = getattr(msg, "text", "") or getattr(msg, "caption", "") or ""
 
                 text = clean_html(text)
@@ -355,7 +359,7 @@ async def one_run():
     print("Run finished:", total)
 
 
-# ---------------- MAIN ----------------
+# ---------- MAIN ----------
 
 async def main():
 
@@ -369,3 +373,4 @@ async def main():
 if __name__ == "__main__":
 
     asyncio.run(main())
+```
