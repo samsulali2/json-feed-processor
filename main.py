@@ -8,7 +8,7 @@ from bs4 import BeautifulSoup
 from telethon import TelegramClient
 from telethon.sessions import StringSession
 
-# ---------- CONFIG ----------
+# CONFIG
 
 API_ID = int(os.environ["A1"])
 API_HASH = os.environ["A2"]
@@ -30,13 +30,12 @@ HEADERS = {
 
 MAX_WEB_PER_RUN = 5
 
-# ---------- TEXT CLEANING ----------
+# TEXT CLEANING
 
 def clean_html(text):
-text = re.sub(r"<.*?>", "", text)
-return text.strip()
+return re.sub(r"<.*?>", "", text or "").strip()
 
-# ---------- URL HELPERS ----------
+# AMAZON HELPERS
 
 def extract_asin(url):
 patterns = [
@@ -60,9 +59,6 @@ return r.url
 except:
 return url
 
-def normalize_url(url):
-return url.split("?")[0].rstrip("/")
-
 def process_amazon(url):
 
 if "amzn.to" in url:
@@ -76,14 +72,9 @@ return None
 aff = f"https://www.amazon.in/dp/{asin}?tag={AMAZON_AFFILIATE}"
 
 try:
-r = requests.get(
-f"https://tinyurl.com/api-create.php?url={aff}",
-timeout=8
-)
-
+r = requests.get(f"https://tinyurl.com/api-create.php?url={aff}", timeout=8)
 if r.status_code == 200:
 return r.text.strip()
-
 except:
 pass
 
@@ -96,7 +87,7 @@ return process_amazon(url)
 
 return None
 
-# ---------- URL EXTRACTION FROM TELEGRAM ----------
+# URL EXTRACTION FROM TELEGRAM
 
 def extract_all_urls(msg):
 
@@ -120,7 +111,7 @@ urls.append(button.url)
 
 return urls
 
-# ---------- STATE ----------
+# STATE MANAGEMENT
 
 def load_seen():
 if os.path.exists(SEEN_FILE):
@@ -142,7 +133,7 @@ def save_state(state):
 with open(STATE_FILE, "w") as f:
 json.dump(state, f)
 
-# ---------- TELEGRAM POST ----------
+# TELEGRAM POST
 
 def post_telegram(text):
 
@@ -158,7 +149,7 @@ timeout=15
 
 return r.status_code == 200
 
-# ---------- DEAL OBJECT ----------
+# DEAL OBJECT
 
 class Deal:
 
@@ -173,9 +164,55 @@ self.uid = f"asin_{asin}"
 else:
 self.uid = hashlib.md5(url.encode()).hexdigest()[:12]
 
-self.url = normalize_url(url)
+self.url = url
 
-# ---------- SCRAPERS ----------
+# AMAZON DEAL SCRAPER
+
+def scrape_amazon_deals():
+
+deals = []
+
+try:
+
+r = requests.get("https://www.amazon.in/gp/goldbox", headers=HEADERS, timeout=15)
+
+soup = BeautifulSoup(r.text, "html.parser")
+
+links = soup.select("a[href*='/dp/']")
+
+seen_asins = set()
+
+for a in links:
+
+href = a.get("href")
+
+if not href:
+continue
+
+if not href.startswith("http"):
+href = "https://www.amazon.in" + href
+
+asin = extract_asin(href)
+
+if not asin or asin in seen_asins:
+continue
+
+seen_asins.add(asin)
+
+title = a.get_text(strip=True)
+
+if not title:
+title = f"Amazon Deal {asin}"
+
+deals.append(Deal(title, href))
+
+except Exception as e:
+
+print("amazon deals error:", e)
+
+return deals
+
+# WEBSITE SCRAPERS
 
 def scrape_desidime():
 
@@ -183,11 +220,7 @@ deals = []
 
 try:
 
-r = requests.get(
-"https://www.desidime.com/deals",
-headers=HEADERS,
-timeout=15
-)
+r = requests.get("https://www.desidime.com/deals", headers=HEADERS, timeout=15)
 
 soup = BeautifulSoup(r.text, "html.parser")
 
@@ -210,6 +243,7 @@ url = "https://www.desidime.com" + url
 deals.append(Deal(title, url))
 
 except Exception as e:
+
 print("desidime error:", e)
 
 return deals
@@ -220,11 +254,7 @@ deals = []
 
 try:
 
-r = requests.get(
-"https://www.freekaamaal.com/",
-headers=HEADERS,
-timeout=15
-)
+r = requests.get("https://www.freekaamaal.com/", headers=HEADERS, timeout=15)
 
 soup = BeautifulSoup(r.text, "html.parser")
 
@@ -237,16 +267,18 @@ if url:
 deals.append(Deal(title, url))
 
 except Exception as e:
+
 print("freekaamaal error:", e)
 
 return deals
 
 SCRAPERS = [
+scrape_amazon_deals,
 scrape_desidime,
 scrape_freekaamaal
 ]
 
-# ---------- MAIN RUN ----------
+# MAIN BOT RUN
 
 async def one_run():
 
@@ -254,7 +286,6 @@ seen = load_seen()
 state = load_state()
 
 posted_this_run = set()
-
 total = 0
 
 print("Checking websites")
@@ -298,11 +329,7 @@ await asyncio.sleep(2)
 
 print("Checking telegram channels")
 
-client = TelegramClient(
-StringSession(SESSION_STRING),
-API_ID,
-API_HASH
-)
+client = TelegramClient(StringSession(SESSION_STRING), API_ID, API_HASH)
 
 await client.connect()
 
@@ -372,8 +399,6 @@ save_seen(seen)
 save_state(state)
 
 print("Run finished:", total)
-
-# ---------- MAIN ----------
 
 async def main():
 
