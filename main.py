@@ -28,23 +28,19 @@ HEADERS = {
 
 MAX_WEB_PER_RUN = 5
 
-# TEXT CLEANING
-
 def clean_html(text):
-return re.sub(r"<.*?>", "", text or "").strip()
-
-# AMAZON HELPERS
+if not text:
+return ""
+return re.sub(r"<.*?>", "", text).strip()
 
 def extract_asin(url):
-
-```
 patterns = [
-    r"/dp/([A-Z0-9]{10})",
-    r"/gp/product/([A-Z0-9]{10})",
-    r"/product/([A-Z0-9]{10})",
-    r"asin=([A-Z0-9]{10})"
+r"/dp/([A-Z0-9]{10})",
+r"/gp/product/([A-Z0-9]{10})",
+r"/product/([A-Z0-9]{10})"
 ]
 
+```
 for p in patterns:
     m = re.search(p, url)
     if m:
@@ -54,14 +50,11 @@ return None
 ```
 
 def expand_short_url(url):
-
-```
 try:
-    r = requests.head(url, allow_redirects=True, timeout=8)
-    return r.url
+r = requests.head(url, allow_redirects=True, timeout=8)
+return r.url
 except:
-    return url
-```
+return url
 
 def process_amazon(url):
 
@@ -98,8 +91,6 @@ if "amazon" in url or "amzn.to" in url:
 return None
 ```
 
-# TELEGRAM URL EXTRACTION
-
 def extract_all_urls(msg):
 
 ```
@@ -123,8 +114,6 @@ if msg.buttons:
 
 return urls
 ```
-
-# STATE
 
 def load_seen():
 
@@ -160,8 +149,6 @@ with open(STATE_FILE, "w") as f:
     json.dump(state, f)
 ```
 
-# TELEGRAM POST
-
 def post_telegram(text):
 
 ```
@@ -177,8 +164,6 @@ r = requests.post(
 
 return r.status_code == 200
 ```
-
-# DEAL OBJECT
 
 class Deal:
 
@@ -197,8 +182,6 @@ def __init__(self, title, url):
     self.url = url
 ```
 
-# AMAZON DEAL SCRAPER
-
 def scrape_amazon_deals():
 
 ```
@@ -214,11 +197,7 @@ try:
 
     soup = BeautifulSoup(r.text, "html.parser")
 
-    links = soup.select("a[href*='/dp/']")
-
-    seen_asins = set()
-
-    for a in links:
+    for a in soup.select("a[href*='/dp/']"):
 
         href = a.get("href")
 
@@ -228,75 +207,19 @@ try:
         if not href.startswith("http"):
             href = "https://www.amazon.in" + href
 
-        asin = extract_asin(href)
-
-        if not asin or asin in seen_asins:
-            continue
-
-        seen_asins.add(asin)
-
         title = a.get_text(strip=True)
 
-        if not title:
-            title = f"Amazon Deal {asin}"
-
-        deals.append(Deal(title, href))
+        deals.append(Deal(title or "Amazon Deal", href))
 
 except Exception as e:
-
     print("amazon deals error:", e)
 
 return deals
 ```
 
-# SCRAPERS
-
-def scrape_desidime():
-
-```
-deals = []
-
-try:
-
-    r = requests.get(
-        "https://www.desidime.com/deals",
-        headers=HEADERS,
-        timeout=15
-    )
-
-    soup = BeautifulSoup(r.text, "html.parser")
-
-    for item in soup.select("article")[:30]:
-
-        a = item.select_one("h2 a") or item.select_one("h3 a")
-
-        if not a:
-            continue
-
-        title = a.get_text(strip=True)
-        url = a.get("href")
-
-        if not url:
-            continue
-
-        if not url.startswith("http"):
-            url = "https://www.desidime.com" + url
-
-        deals.append(Deal(title, url))
-
-except Exception as e:
-
-    print("desidime error:", e)
-
-return deals
-```
-
 SCRAPERS = [
-scrape_amazon_deals,
-scrape_desidime
+scrape_amazon_deals
 ]
-
-# MAIN BOT RUN
 
 async def one_run():
 
@@ -314,12 +237,7 @@ for scraper in SCRAPERS:
 
     deals = scraper()
 
-    posted = 0
-
-    for deal in deals:
-
-        if posted >= MAX_WEB_PER_RUN:
-            break
+    for deal in deals[:MAX_WEB_PER_RUN]:
 
         if deal.uid in seen or deal.uid in posted_this_run:
             continue
@@ -333,10 +251,9 @@ for scraper in SCRAPERS:
 
         if post_telegram(msg):
 
-            posted_this_run.add(deal.uid)
             seen.add(deal.uid)
+            posted_this_run.add(deal.uid)
 
-            posted += 1
             total += 1
 
             print("posted", deal.title[:60])
@@ -363,8 +280,9 @@ for channel in SOURCE_CHANNELS:
             if msg.id <= last_id:
                 continue
 
-            text = getattr(msg, "text", "") or getattr(msg, "caption", "") or ""
-            text = clean_html(text)
+            text = clean_html(
+                getattr(msg, "text", "") or getattr(msg, "caption", "")
+            )
 
             urls = extract_all_urls(msg)
 
@@ -387,12 +305,12 @@ for channel in SOURCE_CHANNELS:
 
                 if post_telegram(new_text):
 
-                    posted_this_run.add(uid)
                     seen.add(uid)
+                    posted_this_run.add(uid)
 
                     total += 1
 
-                    print(f"posted telegram deal from {channel}")
+                    print("posted telegram deal")
 
                     await asyncio.sleep(2)
 
@@ -402,8 +320,7 @@ for channel in SOURCE_CHANNELS:
         state[channel] = new_last
 
     except Exception as e:
-
-        print(f"Skipping channel {channel} — error:", e)
+        print("Skipping channel", channel, e)
 
 await client.disconnect()
 
