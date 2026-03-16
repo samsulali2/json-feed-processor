@@ -87,7 +87,9 @@ def process_amazon(url):
 
 def make_affiliate(url):
 
-    if "amazon" in url or "amzn.to" in url:
+        url = expand_short_url(url)
+
+    if "amazon" in url:
         return process_amazon(url)
 
     return None
