@@ -36,10 +36,12 @@ def clean_html(text):
 
 
 def extract_asin(url):
+
     patterns = [
         r"/dp/([A-Z0-9]{10})",
         r"/gp/product/([A-Z0-9]{10})",
-        r"/product/([A-Z0-9]{10})"
+        r"/product/([A-Z0-9]{10})",
+        r"asin=([A-Z0-9]{10})"
     ]
 
     for p in patterns:
@@ -51,6 +53,7 @@ def extract_asin(url):
 
 
 def expand_short_url(url):
+
     try:
         r = requests.head(url, allow_redirects=True, timeout=8)
         return r.url
@@ -60,8 +63,7 @@ def expand_short_url(url):
 
 def process_amazon(url):
 
-    if "amzn.to" in url:
-        url = expand_short_url(url)
+    url = expand_short_url(url)
 
     asin = extract_asin(url)
 
@@ -175,6 +177,48 @@ class Deal:
         self.url = url
 
 
+def scrape_amazon_deals():
+
+    deals = []
+
+    pages = [
+        "https://www.amazon.in/gp/goldbox",
+        "https://www.amazon.in/deals",
+        "https://www.amazon.in/gp/goldbox?dealType=LIGHTNING_DEAL"
+    ]
+
+    for page in pages:
+
+        try:
+
+            r = requests.get(page, headers=HEADERS, timeout=15)
+
+            soup = BeautifulSoup(r.text, "html.parser")
+
+            for a in soup.select("a[href*='/dp/']"):
+
+                href = a.get("href")
+
+                if not href:
+                    continue
+
+                if not href.startswith("http"):
+                    href = "https://www.amazon.in" + href
+
+                asin = extract_asin(href)
+
+                if not asin:
+                    continue
+
+                deals.append(Deal("Amazon Deal", href))
+
+        except Exception as e:
+
+            print("amazon scrape error:", e)
+
+    return deals
+
+
 async def one_run():
 
     seen = load_seen()
@@ -182,6 +226,30 @@ async def one_run():
 
     posted_this_run = set()
     total = 0
+
+    print("Checking Amazon deals")
+
+    for deal in scrape_amazon_deals():
+
+        if deal.uid in seen:
+            continue
+
+        aff = make_affiliate(deal.url)
+
+        if not aff:
+            continue
+
+        msg = f"🔥 {deal.title}\n\n🔗 {aff}\n\n🛒 Deals by @{YOUR_CHANNEL}"
+
+        if post_telegram(msg):
+
+            seen.add(deal.uid)
+
+            total += 1
+
+            print("posted amazon deal")
+
+            await asyncio.sleep(2)
 
     print("Checking telegram channels")
 
