@@ -92,7 +92,7 @@ def make_affiliate(url):
 
         # check for amazon after expansion
         if "amazon." in url:
-        return process_amazon(url)
+            return process_amazon(url)
 
     return None
 
