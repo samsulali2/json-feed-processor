@@ -296,8 +296,10 @@ async def one_run():
             last_id = state.get(channel, 0)
             new_last = last_id
 
-            async for msg in client.iter_messages(channel, min_id=last_id, limit=100):
-
+            async for msg in client.iter_messages(channel, limit=200):
+                if msg.id <= last_id:
+                    continue
+                
                 text = getattr(msg, "text", "") or getattr(msg, "caption", "") or ""
 
                 text = clean_html(text)
