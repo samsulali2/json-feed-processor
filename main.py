@@ -22,308 +22,250 @@ STATE_FILE = "last_seen.json"
 SEEN_FILE = "seen_web.json"
 
 HEADERS = {
-"User-Agent": "Mozilla/5.0",
-"Accept-Language": "en-IN,en;q=0.9"
+    "User-Agent": "Mozilla/5.0",
+    "Accept-Language": "en-IN,en;q=0.9"
 }
 
 MAX_WEB_PER_RUN = 5
 
+
 def clean_html(text):
-if not text:
-return ""
-return re.sub(r"<.*?>", "", text).strip()
+    if not text:
+        return ""
+    return re.sub(r"<.*?>", "", text).strip()
+
 
 def extract_asin(url):
-patterns = [
-r"/dp/([A-Z0-9]{10})",
-r"/gp/product/([A-Z0-9]{10})",
-r"/product/([A-Z0-9]{10})"
-]
+    patterns = [
+        r"/dp/([A-Z0-9]{10})",
+        r"/gp/product/([A-Z0-9]{10})",
+        r"/product/([A-Z0-9]{10})"
+    ]
 
-```
-for p in patterns:
-    m = re.search(p, url)
-    if m:
-        return m.group(1)
+    for p in patterns:
+        m = re.search(p, url)
+        if m:
+            return m.group(1)
 
-return None
-```
+    return None
+
 
 def expand_short_url(url):
-try:
-r = requests.head(url, allow_redirects=True, timeout=8)
-return r.url
-except:
-return url
+    try:
+        r = requests.head(url, allow_redirects=True, timeout=8)
+        return r.url
+    except:
+        return url
+
 
 def process_amazon(url):
 
-```
-if "amzn.to" in url:
-    url = expand_short_url(url)
-
-asin = extract_asin(url)
-
-if not asin:
-    return None
-
-aff = f"https://www.amazon.in/dp/{asin}?tag={AMAZON_AFFILIATE}"
-
-try:
-    r = requests.get(
-        f"https://tinyurl.com/api-create.php?url={aff}",
-        timeout=8
-    )
-    if r.status_code == 200:
-        return r.text.strip()
-except:
-    pass
-
-return aff
-```
-
-def make_affiliate(url):
-
-```
-if "amazon" in url or "amzn.to" in url:
-    return process_amazon(url)
-
-return None
-```
-
-def extract_all_urls(msg):
-
-```
-urls = []
-
-text = getattr(msg, "text", "") or getattr(msg, "caption", "")
-
-if text:
-    urls += re.findall(r"https?://[^\s]+", text)
-
-if msg.entities:
-    for ent in msg.entities:
-        if hasattr(ent, "url") and ent.url:
-            urls.append(ent.url)
-
-if msg.buttons:
-    for row in msg.buttons:
-        for button in row:
-            if hasattr(button, "url") and button.url:
-                urls.append(button.url)
-
-return urls
-```
-
-def load_seen():
-if os.path.exists(SEEN_FILE):
-with open(SEEN_FILE) as f:
-return set(json.load(f))
-return set()
-
-def save_seen(seen):
-with open(SEEN_FILE, "w") as f:
-json.dump(list(seen)[-2000:], f)
-
-def load_state():
-if os.path.exists(STATE_FILE):
-with open(STATE_FILE) as f:
-return json.load(f)
-return {}
-
-def save_state(state):
-with open(STATE_FILE, "w") as f:
-json.dump(state, f)
-
-def post_telegram(text):
-
-```
-r = requests.post(
-    f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
-    json={
-        "chat_id": f"@{YOUR_CHANNEL}",
-        "text": text,
-        "disable_web_page_preview": False
-    },
-    timeout=15
-)
-
-return r.status_code == 200
-```
-
-class Deal:
-
-```
-def __init__(self, title, url):
-
-    self.title = clean_html(title)[:300]
+    if "amzn.to" in url:
+        url = expand_short_url(url)
 
     asin = extract_asin(url)
 
-    if asin:
-        self.uid = f"asin_{asin}"
-    else:
-        self.uid = hashlib.md5(url.encode()).hexdigest()[:12]
+    if not asin:
+        return None
 
-    self.url = url
-```
+    aff = f"https://www.amazon.in/dp/{asin}?tag={AMAZON_AFFILIATE}"
 
-def scrape_amazon_deals():
+    try:
+        r = requests.get(
+            f"https://tinyurl.com/api-create.php?url={aff}",
+            timeout=8
+        )
+        if r.status_code == 200:
+            return r.text.strip()
+    except:
+        pass
 
-```
-deals = []
+    return aff
 
-try:
 
-    r = requests.get(
-        "https://www.amazon.in/gp/goldbox",
-        headers=HEADERS,
+def make_affiliate(url):
+
+    if "amazon" in url or "amzn.to" in url:
+        return process_amazon(url)
+
+    return None
+
+
+def extract_all_urls(msg):
+
+    urls = []
+
+    text = getattr(msg, "text", "") or getattr(msg, "caption", "")
+
+    if text:
+        urls += re.findall(r"https?://[^\s]+", text)
+
+    if msg.entities:
+        for ent in msg.entities:
+            if hasattr(ent, "url") and ent.url:
+                urls.append(ent.url)
+
+    if msg.buttons:
+        for row in msg.buttons:
+            for button in row:
+                if hasattr(button, "url") and button.url:
+                    urls.append(button.url)
+
+    return urls
+
+
+def load_seen():
+
+    if os.path.exists(SEEN_FILE):
+        with open(SEEN_FILE) as f:
+            return set(json.load(f))
+
+    return set()
+
+
+def save_seen(seen):
+
+    with open(SEEN_FILE, "w") as f:
+        json.dump(list(seen)[-2000:], f)
+
+
+def load_state():
+
+    if os.path.exists(STATE_FILE):
+        with open(STATE_FILE) as f:
+            return json.load(f)
+
+    return {}
+
+
+def save_state(state):
+
+    with open(STATE_FILE, "w") as f:
+        json.dump(state, f)
+
+
+def post_telegram(text):
+
+    r = requests.post(
+        f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
+        json={
+            "chat_id": f"@{YOUR_CHANNEL}",
+            "text": text,
+            "disable_web_page_preview": False
+        },
         timeout=15
     )
 
-    soup = BeautifulSoup(r.text, "html.parser")
+    return r.status_code == 200
 
-    for a in soup.select("a[href*='/dp/']"):
 
-        href = a.get("href")
+class Deal:
 
-        if not href:
-            continue
+    def __init__(self, title, url):
 
-        if not href.startswith("http"):
-            href = "https://www.amazon.in" + href
+        self.title = clean_html(title)[:300]
 
-        title = a.get_text(strip=True)
+        asin = extract_asin(url)
 
-        deals.append(Deal(title or "Amazon Deal", href))
+        if asin:
+            self.uid = f"asin_{asin}"
+        else:
+            self.uid = hashlib.md5(url.encode()).hexdigest()[:12]
 
-except Exception as e:
-    print("amazon deals error:", e)
+        self.url = url
 
-return deals
-```
-
-SCRAPERS = [
-scrape_amazon_deals
-]
 
 async def one_run():
 
-```
-seen = load_seen()
-state = load_state()
+    seen = load_seen()
+    state = load_state()
 
-posted_this_run = set()
-total = 0
+    posted_this_run = set()
+    total = 0
 
-print("Checking websites")
+    print("Checking telegram channels")
 
-for scraper in SCRAPERS:
+    client = TelegramClient(
+        StringSession(SESSION_STRING),
+        API_ID,
+        API_HASH
+    )
 
-    deals = scraper()
+    await client.connect()
 
-    for deal in deals[:MAX_WEB_PER_RUN]:
+    for channel in SOURCE_CHANNELS:
 
-        if deal.uid in seen or deal.uid in posted_this_run:
-            continue
+        try:
 
-        aff = make_affiliate(deal.url)
+            last_id = state.get(channel, 0)
+            new_last = last_id
 
-        if not aff:
-            continue
+            print("Scanning channel:", channel)
 
-        msg = f"🔥 {deal.title}\n\n🔗 {aff}\n\n🛒 Deals by @{YOUR_CHANNEL}"
+            async for msg in client.iter_messages(channel, limit=200):
 
-        if post_telegram(msg):
-
-            seen.add(deal.uid)
-            posted_this_run.add(deal.uid)
-
-            total += 1
-
-            print("posted", deal.title[:60])
-
-            await asyncio.sleep(2)
-
-print("Checking telegram channels")
-
-client = TelegramClient(StringSession(SESSION_STRING), API_ID, API_HASH)
-
-await client.connect()
-
-for channel in SOURCE_CHANNELS:
-
-    try:
-
-        last_id = state.get(channel, 0)
-        new_last = last_id
-
-        print("Scanning channel:", channel)
-
-        async for msg in client.iter_messages(channel, limit=200):
-
-            if msg.id <= last_id:
-                continue
-
-            text = clean_html(
-                getattr(msg, "text", "") or getattr(msg, "caption", "")
-            )
-
-            urls = extract_all_urls(msg)
-
-            for url in urls:
-
-                aff = make_affiliate(url)
-
-                if not aff:
+                if msg.id <= last_id:
                     continue
 
-                asin = extract_asin(url)
+                text = clean_html(
+                    getattr(msg, "text", "") or getattr(msg, "caption", "")
+                )
 
-                uid = f"asin_{asin}" if asin else hashlib.md5(url.encode()).hexdigest()[:12]
+                urls = extract_all_urls(msg)
 
-                if uid in seen or uid in posted_this_run:
-                    continue
+                for url in urls:
 
-                new_text = text.replace(url, aff)
-                new_text += f"\n\n🛒 Deals by @{YOUR_CHANNEL}"
+                    aff = make_affiliate(url)
 
-                if post_telegram(new_text):
+                    if not aff:
+                        continue
 
-                    seen.add(uid)
-                    posted_this_run.add(uid)
+                    asin = extract_asin(url)
 
-                    total += 1
+                    uid = f"asin_{asin}" if asin else hashlib.md5(url.encode()).hexdigest()[:12]
 
-                    print("posted telegram deal")
+                    if uid in seen or uid in posted_this_run:
+                        continue
 
-                    await asyncio.sleep(2)
+                    new_text = text.replace(url, aff)
+                    new_text += f"\n\n🛒 Deals by @{YOUR_CHANNEL}"
 
-            if msg.id > new_last:
-                new_last = msg.id
+                    if post_telegram(new_text):
 
-        state[channel] = new_last
+                        seen.add(uid)
+                        posted_this_run.add(uid)
 
-    except Exception as e:
-        print("Skipping channel", channel, e)
+                        total += 1
 
-await client.disconnect()
+                        print("posted telegram deal")
 
-save_seen(seen)
-save_state(state)
+                        await asyncio.sleep(2)
 
-print("Run finished:", total)
-```
+                if msg.id > new_last:
+                    new_last = msg.id
+
+            state[channel] = new_last
+
+        except Exception as e:
+
+            print("Skipping channel", channel, e)
+
+    await client.disconnect()
+
+    save_seen(seen)
+    save_state(state)
+
+    print("Run finished:", total)
+
 
 async def main():
 
-```
-print("Bot started")
+    print("Bot started")
 
-await one_run()
+    await one_run()
 
-print("Bot finished")
-```
+    print("Bot finished")
 
-if **name** == "**main**":
-asyncio.run(main())
+
+if __name__ == "__main__":
+    asyncio.run(main())
