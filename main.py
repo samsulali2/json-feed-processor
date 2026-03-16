@@ -94,7 +94,7 @@ def make_affiliate(url):
         if "amazon." in url:
             return process_amazon(url)
 
-    return None
+        return None
 
 
 def extract_all_urls(msg):
