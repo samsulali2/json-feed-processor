@@ -87,12 +87,14 @@ def process_amazon(url):
 
 def make_affiliate(url):
 
+        # always expand first
         url = expand_short_url(url)
 
-        if "amazon" in url:
-            return process_amazon(url)
+        # check for amazon after expansion
+        if "amazon." in url:
+        return process_amazon(url)
 
-        return None
+    return None
 
 
 def extract_all_urls(msg):
