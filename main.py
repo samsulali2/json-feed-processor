@@ -104,18 +104,29 @@ def extract_all_urls(msg):
     if text:
         urls += re.findall(r"https?://[^\s]+", text)
 
+    # extract entity URLs (hidden links)
     if msg.entities:
         for ent in msg.entities:
+
             if hasattr(ent, "url") and ent.url:
                 urls.append(ent.url)
 
+            if hasattr(ent, "offset") and hasattr(ent, "length"):
+                try:
+                    hidden = text[ent.offset:ent.offset + ent.length]
+                    if hidden.startswith("http"):
+                        urls.append(hidden)
+                except:
+                    pass
+
+    # extract button URLs
     if msg.buttons:
         for row in msg.buttons:
             for button in row:
                 if hasattr(button, "url") and button.url:
                     urls.append(button.url)
 
-    return urls
+    return list(set(urls))
 
 
 def load_seen():
