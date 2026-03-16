@@ -297,6 +297,7 @@ async def one_run():
             new_last = last_id
 
             async for msg in client.iter_messages(channel, limit=200):
+                print("Reading message from", channel, "ID:", msg.id)
                 if msg.id <= last_id:
                     continue
                 
