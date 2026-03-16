@@ -96,7 +96,7 @@ def extract_all_urls(msg):
 ```
 urls = []
 
-text = getattr(msg, "text", "") or getattr(msg, "caption", "") or ""
+text = getattr(msg, "text", "") or getattr(msg, "caption", "")
 
 if text:
     urls += re.findall(r"https?://[^\s]+", text)
@@ -116,38 +116,24 @@ return urls
 ```
 
 def load_seen():
-
-```
 if os.path.exists(SEEN_FILE):
-    with open(SEEN_FILE) as f:
-        return set(json.load(f))
-
+with open(SEEN_FILE) as f:
+return set(json.load(f))
 return set()
-```
 
 def save_seen(seen):
-
-```
 with open(SEEN_FILE, "w") as f:
-    json.dump(list(seen)[-2000:], f)
-```
+json.dump(list(seen)[-2000:], f)
 
 def load_state():
-
-```
 if os.path.exists(STATE_FILE):
-    with open(STATE_FILE) as f:
-        return json.load(f)
-
+with open(STATE_FILE) as f:
+return json.load(f)
 return {}
-```
 
 def save_state(state):
-
-```
 with open(STATE_FILE, "w") as f:
-    json.dump(state, f)
-```
+json.dump(state, f)
 
 def post_telegram(text):
 
@@ -228,7 +214,6 @@ seen = load_seen()
 state = load_state()
 
 posted_this_run = set()
-
 total = 0
 
 print("Checking websites")
