@@ -49,7 +49,7 @@ def extract_asin(url):
         r"asin=([A-Z0-9]{10})"
     ]
     for p in patterns:
-        m = re.search(p, url)
+        m = re.search(p, url, re.IGNORECASE)
         if m:
             return m.group(1)
     return None
@@ -62,7 +62,6 @@ def expand_short_url(url):
         return url
 
 def process_amazon(url):
-    url = expand_short_url(url)
     asin = extract_asin(url)
     if not asin:
         return None
@@ -76,10 +75,10 @@ def process_amazon(url):
     return aff
 
 def make_affiliate(url):
-    url = expand_short_url(url)
-    if "amazon." in url.lower():
-        return process_amazon(url)
-    return None
+    expanded = expand_short_url(url)
+    if "amazon.in" not in expanded.lower():
+        return None
+    return process_amazon(expanded)
 
 def extract_all_urls(msg):
     urls = []
@@ -116,7 +115,7 @@ def load_seen():
 
 def save_seen(seen):
     with open(SEEN_FILE, "w") as f:
-        json.dump(list(seen)[-2000:], f)
+        json.dump(list(seen)[-2000:], f)  # keep last 2000 to limit size
 
 def load_state():
     if not os.path.exists(STATE_FILE):
@@ -218,7 +217,11 @@ class Deal:
 
 def scrape_amazon_deals():
     deals = []
-    pages = ["https://www.amazon.in/gp/goldbox", "https://www.amazon.in/deals", "https://www.amazon.in/gp/goldbox?dealType=LIGHTNING_DEAL"]
+    pages = [
+        "https://www.amazon.in/gp/goldbox",
+        "https://www.amazon.in/deals",
+        "https://www.amazon.in/gp/goldbox?dealType=LIGHTNING_DEAL"
+    ]
     for page in pages:
         try:
             r = requests.get(page, headers=HEADERS, timeout=15)
@@ -242,7 +245,7 @@ async def one_run():
         lock_fd = open(LOCK_FILE, "w")
         fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except BlockingIOError:
-        print("Another instance is running → skipping")
+        print("Another instance is running → skipping this cron run")
         return
     except Exception as e:
         print("Lock error:", e)
@@ -271,7 +274,7 @@ async def one_run():
                 print("Posted Amazon deal")
                 await asyncio.sleep(1.2)
 
-        # ===================== DAILY ENGAGEMENT (Morning/Evening) =====================
+        # ===================== DAILY ENGAGEMENT =====================
         print("Checking daily morning/evening posts...")
         daily_state = load_daily_state()
         today = date.today().isoformat()
@@ -307,28 +310,59 @@ async def one_run():
                     if msg.id <= last_id:
                         continue
 
+                    message_uid = f"msg_{channel}_{msg.id}"
+                    if message_uid in seen:
+                        print(f"Skipping duplicate message {msg.id} from {channel}")
+                        continue
+
                     text = clean_html(getattr(msg, "text", "") or getattr(msg, "caption", ""))
                     urls = extract_all_urls(msg)
 
                     new_text = text
                     has_affiliate = False
+                    aff_urls = []
+
                     for url in urls:
                         aff = make_affiliate(url)
                         if aff:
                             new_text = new_text.replace(url, aff)
                             has_affiliate = True
+                            aff_urls.append(aff)
 
                     if has_affiliate:
+                        # Simple suspicious price filter (anti-fake/spam)
+                        price_match = re.search(r'[₹₹]?\s*(\d{1,3}(?:,\d{3})*|\d+)\s*(?:,|\*|$)', new_text + text, re.IGNORECASE)
+                        skip = False
+                        if price_match:
+                            try:
+                                price_str = price_match.group(1).replace(',', '')
+                                price = int(price_str)
+                                if price < 5000 and ("refrigerator" in new_text.lower() or "fridge" in new_text.lower()):
+                                    print(f"Skipping suspiciously low price deal ({price}) from {channel} msg {msg.id}")
+                                    skip = True
+                            except:
+                                pass
+
+                        if skip:
+                            continue
+
                         new_text += f"\n\n🛒 Deals by @{YOUR_CHANNEL}"
+
+                        print(f"Posting from {channel} msg {msg.id} - found {len(aff_urls)} affiliate links")
+
                         if post_telegram(new_text):
+                            # Mark message + all ASINs/URLs as seen
+                            seen.add(message_uid)
                             for url in urls:
                                 asin = extract_asin(url)
                                 uid = f"asin_{asin}" if asin else hashlib.md5(url.encode()).hexdigest()[:12]
-                                if uid not in seen:
-                                    seen.add(uid)
+                                seen.add(uid)
                             total += 1
                             print("Posted telegram deal")
                             await asyncio.sleep(1.2)
+                    else:
+                        if urls:
+                            print(f"No valid Amazon.in affiliate found in {channel} msg {msg.id} (urls: {len(urls)})")
 
                     if msg.id > new_last:
                         new_last = msg.id
@@ -344,10 +378,10 @@ async def one_run():
         save_state(state)
 
         duration = time.time() - start_time
-        print(f"✅ Run finished: {total} deals in {duration:.1f} seconds")
+        print(f"✅ Run finished: {total} deals in {duration:.1f} seconds | Seen items: {len(seen):,}")
 
     except Exception as e:
-        print(f"💥 FATAL ERROR: {e}")
+        print(f"💥 FATAL ERROR in run: {e}")
         traceback.print_exc()
     finally:
         if lock_fd:
