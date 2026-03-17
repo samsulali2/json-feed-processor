@@ -7,6 +7,8 @@ import hashlib
 import time
 import traceback
 import fcntl
+from datetime import datetime, date
+from zoneinfo import ZoneInfo
 from bs4 import BeautifulSoup
 from telethon import TelegramClient
 from telethon.sessions import StringSession
@@ -23,6 +25,10 @@ AMAZON_AFFILIATE = os.environ["A7"].strip()
 STATE_FILE = "last_seen.json"
 SEEN_FILE = "seen_web.json"
 LOCK_FILE = "deal_bot.lock"
+DAILY_STATE_FILE = "daily_posts.json"
+
+DAILY_MORNING_HOUR = 8    # 8:00 AM IST
+DAILY_EVENING_HOUR = 19   # 7:00 PM IST
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
@@ -126,21 +132,79 @@ def save_state(state):
     with open(STATE_FILE, "w") as f:
         json.dump(state, f)
 
+def load_daily_state():
+    if not os.path.exists(DAILY_STATE_FILE):
+        return {"last_morning": "", "last_evening": ""}
+    try:
+        with open(DAILY_STATE_FILE) as f:
+            return json.load(f)
+    except Exception as e:
+        print(f"⚠️ Corrupted {DAILY_STATE_FILE}, resetting: {e}")
+        return {"last_morning": "", "last_evening": ""}
+
+def save_daily_state(state):
+    with open(DAILY_STATE_FILE, "w") as f:
+        json.dump(state, f)
+
 def post_telegram(text):
     try:
         r = requests.post(
             f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
-            json={
-                "chat_id": f"@{YOUR_CHANNEL}",
-                "text": text,
-                "disable_web_page_preview": False
-            },
+            json={"chat_id": f"@{YOUR_CHANNEL}", "text": text, "disable_web_page_preview": False},
             timeout=15
         )
         return r.status_code == 200
     except Exception as e:
         print("Telegram post failed:", e)
         return False
+
+def post_poll(question, options):
+    try:
+        r = requests.post(
+            f"https://api.telegram.org/bot{BOT_TOKEN}/sendPoll",
+            json={
+                "chat_id": f"@{YOUR_CHANNEL}",
+                "question": question,
+                "options": options,
+                "is_anonymous": False,
+                "allows_multiple_answers": False
+            },
+            timeout=15
+        )
+        return r.status_code == 200
+    except Exception as e:
+        print("Poll failed:", e)
+        return False
+
+def send_morning_engagement():
+    text = f"""🌅 Good Morning, Deal Hunters!
+
+How are you liking the deals posted today?
+
+Please vote in the poll below 👇
+
+💡 Tip: Add your family & friends so they never miss a deal!
+👉 @{YOUR_CHANNEL}"""
+    if post_telegram(text):
+        question = "How do you rate today's deals so far? 🔥"
+        options = ["Excellent! ❤️", "Good 👍", "Average 🤔", "Needs improvement 👎"]
+        post_poll(question, options)
+        print("✅ Posted morning engagement + poll")
+
+def send_evening_engagement():
+    text = f"""🌆 Good Evening, Deal Lovers!
+
+How were today's deals overall?
+
+Vote below and let us know!
+
+💡 Help us grow: Add your family & friends!
+👉 @{YOUR_CHANNEL}"""
+    if post_telegram(text):
+        question = "How would you rate today's deals overall? 🔥"
+        options = ["Excellent! ❤️", "Good 👍", "Average 🤔", "Needs improvement 👎"]
+        post_poll(question, options)
+        print("✅ Posted evening engagement + poll")
 
 class Deal:
     def __init__(self, title, url):
@@ -154,11 +218,7 @@ class Deal:
 
 def scrape_amazon_deals():
     deals = []
-    pages = [
-        "https://www.amazon.in/gp/goldbox",
-        "https://www.amazon.in/deals",
-        "https://www.amazon.in/gp/goldbox?dealType=LIGHTNING_DEAL"
-    ]
+    pages = ["https://www.amazon.in/gp/goldbox", "https://www.amazon.in/deals", "https://www.amazon.in/gp/goldbox?dealType=LIGHTNING_DEAL"]
     for page in pages:
         try:
             r = requests.get(page, headers=HEADERS, timeout=15)
@@ -177,25 +237,23 @@ def scrape_amazon_deals():
     return deals
 
 async def one_run():
-    # ============== LOCK TO PREVENT CRON OVERLAP ==============
     lock_fd = None
     try:
         lock_fd = open(LOCK_FILE, "w")
         fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except BlockingIOError:
-        print("Another instance is running → skipping this cron run")
+        print("Another instance is running → skipping")
         return
     except Exception as e:
         print("Lock error:", e)
         return
 
     start_time = time.time()
-    print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Starting run...")
+    print(f"[{datetime.now(ZoneInfo('Asia/Kolkata')).strftime('%Y-%m-%d %H:%M:%S')}] Starting run...")
 
     try:
         seen = load_seen()
         state = load_state()
-        posted_this_run = set()
         total = 0
 
         # ===================== AMAZON DEALS =====================
@@ -212,6 +270,27 @@ async def one_run():
                 total += 1
                 print("Posted Amazon deal")
                 await asyncio.sleep(1.2)
+
+        # ===================== DAILY ENGAGEMENT (Morning/Evening) =====================
+        print("Checking daily morning/evening posts...")
+        daily_state = load_daily_state()
+        today = date.today().isoformat()
+        now_ist = datetime.now(ZoneInfo("Asia/Kolkata"))
+        hour = now_ist.hour
+        updated = False
+
+        if daily_state.get("last_morning") != today and hour == DAILY_MORNING_HOUR:
+            send_morning_engagement()
+            daily_state["last_morning"] = today
+            updated = True
+
+        if daily_state.get("last_evening") != today and hour == DAILY_EVENING_HOUR:
+            send_evening_engagement()
+            daily_state["last_evening"] = today
+            updated = True
+
+        if updated:
+            save_daily_state(daily_state)
 
         # ===================== TELEGRAM CHANNELS =====================
         print("Checking telegram channels...")
@@ -231,7 +310,6 @@ async def one_run():
                     text = clean_html(getattr(msg, "text", "") or getattr(msg, "caption", ""))
                     urls = extract_all_urls(msg)
 
-                    # Replace ALL Amazon links in ONE message
                     new_text = text
                     has_affiliate = False
                     for url in urls:
@@ -243,13 +321,11 @@ async def one_run():
                     if has_affiliate:
                         new_text += f"\n\n🛒 Deals by @{YOUR_CHANNEL}"
                         if post_telegram(new_text):
-                            # mark all found ASINs as seen
                             for url in urls:
                                 asin = extract_asin(url)
                                 uid = f"asin_{asin}" if asin else hashlib.md5(url.encode()).hexdigest()[:12]
                                 if uid not in seen:
                                     seen.add(uid)
-                                    posted_this_run.add(uid)
                             total += 1
                             print("Posted telegram deal")
                             await asyncio.sleep(1.2)
@@ -271,10 +347,9 @@ async def one_run():
         print(f"✅ Run finished: {total} deals in {duration:.1f} seconds")
 
     except Exception as e:
-        print(f"💥 FATAL ERROR in run: {e}")
+        print(f"💥 FATAL ERROR: {e}")
         traceback.print_exc()
     finally:
-        # ============== RELEASE LOCK ==============
         if lock_fd:
             try:
                 fcntl.flock(lock_fd, fcntl.LOCK_UN)
