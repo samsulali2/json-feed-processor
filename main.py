@@ -42,14 +42,21 @@ from telethon.tl.types import MessageEntityTextUrl, MessageEntityUrl
 VERSION = "8.0"
 
 # ── Config ────────────────────────────────────────────────────────────────────
-API_ID          = int(os.environ["A1"])
-API_HASH        = os.environ["A2"]
-BOT_TOKEN       = os.environ["A3"]
-SESSION_STRING  = os.environ["A4"].strip()
-YOUR_CHANNEL    = os.environ["A5"].strip().lstrip('@')
-SOURCE_CHANNELS = [c.strip().lstrip('@') for c in os.environ["A6"].split(",") if c.strip()]
-AMAZON_TAG      = os.environ["A7"].strip()
-CUELINKS_KEY    = os.environ.get("A8", "").strip()
+# Validate all required secrets upfront — gives clear error if any missing/empty
+def _require(key):
+    val = os.environ.get(key, '').strip()
+    if not val:
+        raise SystemExit(f"❌ Secret {key} is missing or empty — set it in GitHub repo Settings → Secrets")
+    return val
+
+API_ID          = int(_require("A1"))
+API_HASH        = _require("A2")
+BOT_TOKEN       = _require("A3")
+SESSION_STRING  = _require("A4")
+YOUR_CHANNEL    = _require("A5").lstrip('@')
+SOURCE_CHANNELS = [c.strip().lstrip('@') for c in _require("A6").split(",") if c.strip()]
+AMAZON_TAG      = _require("A7")
+CUELINKS_KEY    = os.environ.get("A8", "").strip()  # optional
 
 STATE_FILE = "last_seen.json"   # persisted to repo via workflow git commit
 DEALS_FILE = "deals.json"
@@ -101,31 +108,62 @@ BROWSE_HEADERS = {
 # SECTION 1 — URL UTILITIES
 # ─────────────────────────────────────────────────────────────────────────────
 
+def strip_html(text):
+    """
+    Strip HTML tags and extract clean text + URLs from HTML-formatted messages.
+    Some source channels post HTML with <a href="..."> links — we need both
+    the clean text AND the URLs from href attributes.
+    """
+    if not text or '<' not in text:
+        return text
+    # Extract href URLs before stripping tags
+    return re.sub(r'<[^>]+>', ' ', text)
+
+def extract_href_urls(text):
+    """Extract URLs from HTML href attributes"""
+    return re.findall(r'href=["\']([^"\']+)["\']', text or '')
+
+def extract_src_urls(text):
+    """Extract URLs from HTML src attributes (skip tracking pixels)"""
+    srcs = re.findall(r'src=["\']([^"\']+)["\']', text or '')
+    # Filter out 1x1 tracking pixels
+    return [s if s.startswith('http') else 'https:' + s
+            for s in srcs if 'amazon-adsystem' not in s]
+
 def extract_text_urls(text):
     """Extract all plain URLs visible in text"""
     return re.findall(r'https?://[^\s\)\]>\"\'<\u2019\u201d\u2018]+', text or '')
 
 def extract_all_urls_from_msg(msg):
     """
-    Extract URLs from BOTH visible text AND hidden Telegram entities.
-    KEY FIX: [Buy Now](https://ddime.in/xxx) hides URL in entity.url, not in msg.text.
+    Extract URLs from ALL possible sources in a Telegram message:
+    1. Plain URLs visible in text
+    2. Hidden entity URLs ([Buy Now](url) → entity.url)
+    3. HTML href attributes (some channels post raw HTML)
+    4. Telegram media captions
     """
     seen = []
-    text = msg.text or msg.message or ''
+    raw = msg.text or msg.message or ''
 
-    # 1. Plain URLs in text
-    for url in extract_text_urls(text):
+    # 1. HTML href URLs (source channels sometimes post raw HTML)
+    if '<a ' in raw or 'href=' in raw:
+        for url in extract_href_urls(raw):
+            if url not in seen and url.startswith('http'):
+                seen.append(url)
+
+    # 2. Plain URLs in text
+    for url in extract_text_urls(raw):
         if url not in seen:
             seen.append(url)
 
-    # 2. Hidden entity URLs (hyperlinked text like [Buy Now](url))
+    # 3. Hidden entity URLs ([Buy Now](url) style)
     if msg.entities:
         for ent in msg.entities:
             if isinstance(ent, MessageEntityTextUrl):
                 if ent.url and ent.url not in seen:
                     seen.append(ent.url)
             elif isinstance(ent, MessageEntityUrl):
-                u = text[ent.offset: ent.offset + ent.length]
+                u = raw[ent.offset: ent.offset + ent.length]
                 if u and u not in seen:
                     seen.append(u)
     return seen
@@ -389,6 +427,14 @@ def build_clean_text(msg, affiliate_url):
     4. Append affiliate link clearly at bottom
     """
     raw = msg.text or msg.message or ''
+
+    # Strip HTML tags if message contains HTML formatting
+    if '<' in raw and '>' in raw:
+        raw = strip_html(raw)
+        raw = re.sub(r'\s+', ' ', raw)
+        # Re-split into lines after stripping
+        raw = raw.replace('  ', '\n').strip()
+
     lines = raw.split('\n')
     clean = []
 
@@ -484,29 +530,42 @@ def validate_post(text, affiliate_url):
 # ─────────────────────────────────────────────────────────────────────────────
 
 def post_photo(chat_id, img_bytes, caption, ctype='image/jpeg'):
-    """Send image + caption via Bot API sendPhoto (multipart upload)"""
+    """
+    Send image + caption via Bot API sendPhoto (multipart upload).
+    Caption is stripped of HTML and limited to 1024 chars.
+    """
     try:
+        # Strip any HTML from caption — Telegram sendPhoto doesn't support HTML
+        # unless parse_mode is set, and parse_mode with malformed HTML fails silently
+        clean_caption = re.sub(r'<[^>]+>', '', caption)  # strip HTML tags
+        clean_caption = clean_caption[:1024]
         ext = 'jpg' if 'jpeg' in ctype else ctype.split('/')[-1]
         r = requests.post(
             f"https://api.telegram.org/bot{BOT_TOKEN}/sendPhoto",
-            data={'chat_id': chat_id, 'caption': caption[:1024]},
+            data={'chat_id': chat_id, 'caption': clean_caption},
             files={'photo': (f'product.{ext}', img_bytes, ctype)},
             timeout=30,
         )
+        if r.status_code != 200:
+            print(f"    sendPhoto API error: {r.text[:150]}")
         return r.status_code == 200, r.text
     except Exception as e:
         return False, str(e)
 
 def post_text(chat_id, text):
-    """Send text message via Bot API"""
+    """Send text message via Bot API. Strips HTML tags from text."""
     try:
+        clean = re.sub(r'<[^>]+>', '', text)  # strip any residual HTML tags
+        clean = re.sub(r'\s+', ' ', clean).strip()[:4096]
         r = requests.post(
             f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
             json={'chat_id':                  chat_id,
-                  'text':                     text[:4096],
+                  'text':                     clean,
                   'disable_web_page_preview': True},
             timeout=15,
         )
+        if r.status_code != 200:
+            print(f"    sendMessage API error: {r.text[:150]}")
         return r.status_code == 200, r.text
     except Exception as e:
         return False, str(e)
