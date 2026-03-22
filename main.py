@@ -527,6 +527,216 @@ def validate_post(text, affiliate_url):
     return True, "ok"
 
 
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SECTION 6 — PRE-POST CHECKLIST (12 checks) + OPTIONAL GROQ AI QUALITY CHECK
+# Every deal MUST pass all checks before posting.
+# Each check either FIXES the issue automatically or REJECTS the deal.
+# ─────────────────────────────────────────────────────────────────────────────
+
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "").strip()
+
+class CheckResult:
+    def __init__(self):
+        self.passed  = []
+        self.fixed   = []
+        self.failed  = []
+
+    def ok(self, name):
+        self.passed.append(name)
+
+    def fix(self, name, detail=""):
+        self.fixed.append(f"{name}: {detail}" if detail else name)
+
+    def fail(self, name, detail=""):
+        self.failed.append(f"{name}: {detail}" if detail else name)
+
+    @property
+    def is_good(self):
+        return len(self.failed) == 0
+
+    def summary(self):
+        lines = []
+        for f in self.fixed:  lines.append(f"  🔧 FIXED  {f}")
+        for f in self.failed: lines.append(f"  ❌ FAIL   {f}")
+        return "\n".join(lines) if lines else "  ✅ all clean"
+
+
+def run_checklist(text, affiliate_url):
+    """
+    Run all 12 pre-post checks. Auto-fixes where possible.
+    Returns (final_text, affiliate_url, result: CheckResult).
+    """
+    r = CheckResult()
+
+    # ── CHECK 1: Raw HTML tags ───────────────────────────────────────────────
+    if re.search(r'<[a-zA-Z][^>]*>', text):
+        text = re.sub(r'<[^>]+>', ' ', text)
+        text = re.sub(r'\s+', ' ', text).strip()
+        r.fix("HTML tags", "stripped")
+    else:
+        r.ok("no HTML")
+
+    # ── CHECK 2: Source site URLs leaked ────────────────────────────────────
+    source_leaks = [u for u in extract_text_urls(text) if is_source_site(u)]
+    if source_leaks:
+        for u in source_leaks:
+            text = text.replace(u, '')
+        text = re.sub(r'\s+', ' ', text).strip()
+        r.fix("source site URLs", f"removed {len(source_leaks)}")
+    else:
+        r.ok("no source URLs")
+
+    # ── CHECK 3: Shortener URLs leaked (except our own affiliate) ───────────
+    shortener_leaks = [u for u in extract_text_urls(text)
+                       if is_shortener(u) and u != affiliate_url]
+    if shortener_leaks:
+        for u in shortener_leaks:
+            text = text.replace(u, '')
+        r.fix("shortener URLs", f"removed {len(shortener_leaks)}")
+    else:
+        r.ok("no shortener leak")
+
+    # ── CHECK 4: Must have affiliate link ────────────────────────────────────
+    if not affiliate_url:
+        r.fail("no affiliate URL", "deal rejected")
+        return text, affiliate_url, r
+    else:
+        r.ok("affiliate URL present")
+
+    # ── CHECK 5: TinyURL homepage (tinyurl.com/ with no path) ───────────────
+    if affiliate_url.rstrip('/') == 'https://tinyurl.com':
+        r.fail("TinyURL homepage", "shortening failed — using original URL would be ugly")
+        return text, affiliate_url, r
+    else:
+        r.ok("valid affiliate URL")
+
+    # ── CHECK 6: Affiliate link present in text ──────────────────────────────
+    if affiliate_url not in text:
+        text += f"\n\n🔗 {affiliate_url}"
+        r.fix("affiliate URL in text", "appended")
+    else:
+        r.ok("affiliate URL in text")
+
+    # ── CHECK 7: Orphan label lines (e.g. "Link: " with nothing after) ──────
+    fixed_lines = []
+    removed = 0
+    for line in text.split('\n'):
+        s = line.strip()
+        if re.match(r'^[\w\s]{2,20}:\s*$', s) and not extract_text_urls(s):
+            removed += 1
+            continue
+        fixed_lines.append(line)
+    if removed:
+        text = re.sub(r'\n{3,}', '\n\n', '\n'.join(fixed_lines)).strip()
+        r.fix("orphan labels", f"removed {removed}")
+    else:
+        r.ok("no orphan labels")
+
+    # ── CHECK 8: Empty text after cleaning ──────────────────────────────────
+    meaningful = re.sub(r'https?://\S+', '', text)  # text without URLs
+    meaningful = re.sub(r'🔗|🛒|[\s]', '', meaningful)
+    if len(meaningful) < 10:
+        r.fail("empty text", f"only {len(meaningful)} meaningful chars")
+        return text, affiliate_url, r
+    else:
+        r.ok(f"has content ({len(meaningful)} chars)")
+
+    # ── CHECK 9: Text too long ───────────────────────────────────────────────
+    if len(text) > 4096:
+        # Keep content + ensure affiliate link is at end
+        text = text[:3900] + f"\n\n🔗 {affiliate_url}"
+        r.fix("text length", "trimmed to 3900+link")
+    else:
+        r.ok(f"length OK ({len(text)} chars)")
+
+    # ── CHECK 10: Source channel branding already in text ───────────────────
+    if '@hugediscountshop' in text.lower().replace('@hugediscountshop', ''):
+        # Only flag if it appears MORE than once (we add it ourselves once)
+        count = text.lower().count('@hugediscountshop')
+        if count > 1:
+            # Remove all instances — we'll add one at the end
+            text = re.sub(r'@hugediscountshop', '', text, flags=re.IGNORECASE).strip()
+            r.fix("duplicate branding", f"removed {count-1} extra")
+        else:
+            r.ok("branding OK")
+    else:
+        r.ok("branding not yet added")
+
+    # ── CHECK 11: Price symbols intact ──────────────────────────────────────
+    # Just a warning — don't fail, just log
+    if 'Rs' in text or 'INR' in text or '₹' in text:
+        r.ok("price info present")
+    else:
+        r.ok("no price info (OK)")
+
+    # ── CHECK 12: Has product title (some words before the link) ────────────
+    title_text = text.split('🔗')[0].strip()
+    word_count = len([w for w in title_text.split() if len(w) > 2])
+    if word_count < 3:
+        r.fail("no product title", f"only {word_count} meaningful words")
+        return text, affiliate_url, r
+    else:
+        r.ok(f"has title ({word_count} words)")
+
+    return text, affiliate_url, r
+
+
+def groq_quality_check(text, affiliate_url):
+    """
+    Optional: Ask Groq to verify the post looks like a genuine deal.
+    Returns (approved: bool, reason: str).
+    Only runs if GROQ_API_KEY env var is set.
+    Fast — uses llama-3.1-8b-instant (free tier).
+    """
+    if not GROQ_API_KEY:
+        return True, "groq skip (no key)"
+
+    # Strip the link from text for cleaner analysis
+    text_for_ai = text.split('🔗')[0].strip()[:500]
+
+    prompt = f"""You are a quality checker for a deal-posting bot.
+Review this deal message and reply ONLY with JSON: {{"ok": true/false, "reason": "one line"}}
+
+Rules — mark ok=false if:
+- Contains raw HTML tags or code
+- Contains source website branding (desidime, dealsmagnet, etc.)
+- Contains shortened URLs that weren't replaced (ddime.in, bit.ly etc.)
+- Has no recognizable product name
+- Is completely empty or only whitespace
+
+Mark ok=true if it looks like a clean deal post with product info.
+
+Message:
+{text_for_ai}
+
+Affiliate link present: {bool(affiliate_url)}
+
+Reply ONLY with JSON, nothing else."""
+
+    try:
+        r = requests.post(
+            "https://api.groq.com/openai/v1/chat/completions",
+            headers={"Authorization": f"Bearer {GROQ_API_KEY}",
+                     "Content-Type": "application/json"},
+            json={"model": "llama-3.1-8b-instant",
+                  "messages": [{"role": "user", "content": prompt}],
+                  "max_tokens": 60, "temperature": 0},
+            timeout=8
+        )
+        if r.status_code == 200:
+            content = r.json()['choices'][0]['message']['content'].strip()
+            # Parse JSON response
+            match = re.search(r'\{.*\}', content, re.DOTALL)
+            if match:
+                data = json.loads(match.group())
+                return data.get('ok', True), data.get('reason', 'ok')
+        print(f"    Groq HTTP {r.status_code}: {r.text[:80]}")
+    except Exception as e:
+        print(f"    Groq error: {e}")
+
+    return True, "groq error (allow through)"  # don't block on AI failure
+
 # ─────────────────────────────────────────────────────────────────────────────
 # SECTION 6 — TELEGRAM BOT API
 # ─────────────────────────────────────────────────────────────────────────────
@@ -708,21 +918,23 @@ async def run():
                     clean = build_clean_text(msg, affiliate_url)
                     print(f"    clean text ({len(clean)}ch): {clean[:80].replace(chr(10),' ')!r}")
 
-                    # ── 4. Validate ──────────────────────────────────────────
-                    ok, reason = validate_post(clean, affiliate_url)
-                    if not ok:
-                        # Try one more sanitize pass
-                        clean = sanitize_text(clean, affiliate_url)
-                        if affiliate_url and affiliate_url not in clean:
-                            clean += f"\n\n🔗 {affiliate_url}"
-                        ok, reason = validate_post(clean, affiliate_url)
-                        if not ok:
-                            print(f"    ✗ validation failed: {reason}")
+                    # ── 4. PRE-POST CHECKLIST (12 checks) ────────────────────────────────
+                    clean, affiliate_url, chk = run_checklist(clean, affiliate_url)
+                    print(chk.summary())
+                    if not chk.is_good:
+                        print(f"    ✗ checklist FAILED — skipping")
+                        continue
+
+                    # ── 4b. Groq AI quality check (optional) ─────────────────────────────
+                    if GROQ_API_KEY:
+                        ai_ok, ai_reason = groq_quality_check(clean, affiliate_url)
+                        if not ai_ok:
+                            print(f"    🤖 Groq REJECTED: {ai_reason} — skipping")
                             continue
+                        print(f"    🤖 Groq OK: {ai_reason}")
 
-                    # Append channel branding AFTER validation
+                    # Append channel branding AFTER all checks pass
                     final_text = clean + f"\n\n🛒 Deals by @{YOUR_CHANNEL}"
-
                     # ── 5. Get image ─────────────────────────────────────────
                     img_bytes = None
                     img_type  = 'image/jpeg'
