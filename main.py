@@ -160,23 +160,26 @@ def get_best_url(urls):
     return urls[0]
 
 def clean_message(text):
-    """Remove source site references, hashtags, and unwanted links from message"""
-    # Remove lines containing source site links
+    """Remove source site URLs and hashtag lines from message"""
     lines = text.split('\n')
     clean_lines = []
     for line in lines:
-        # Skip lines with source site URLs
-        if any(d in line for d in SKIP_DOMAINS):
+        stripped = line.strip()
+        # Skip empty lines (will re-add spacing later)
+        if not stripped:
+            clean_lines.append('')
             continue
-        # Skip lines that are just hashtags
-        if re.match(r'^[\s#\w]+$', line) and '#' in line:
+        # Skip lines that contain only source site URLs
+        if any(d in stripped for d in SKIP_DOMAINS):
             continue
-        # Skip lines starting with "Link:" or "On #"
-        if re.match(r'^(Link:|On #)', line.strip()):
+        # Skip lines that are ONLY hashtags like "On #Flipkart #Category"
+        if stripped.startswith('On #') or re.match(r'^#+\w+(\s+#+\w+)*$', stripped):
+            continue
+        # Skip lines starting with "Link:" 
+        if stripped.lower().startswith('link:'):
             continue
         clean_lines.append(line)
     text = '\n'.join(clean_lines)
-    # Remove extra blank lines
     text = re.sub(r'\n{3,}', '\n\n', text).strip()
     return text
 
@@ -503,8 +506,8 @@ async def run():
                             except Exception as e:
                                 print(f"    📷 error: {e}")
 
-                        urls = extract_urls(text)
-                        if urls:
+                        urls = extract_urls(new_text)
+                        if urls or new_text.strip():
                             new_text += f"\n\n🛒 Deals by @{YOUR_CHANNEL}"
                             ok, resp = post_telegram(bot_api, new_text)
                             if ok:
