@@ -1,13 +1,18 @@
 """
-Telegram Affiliate Deal Bot  v9.0
-===================================
-Fixes in this version:
-  - fktr.in (Flipkart shortener) added to SHORTENER_DOMAINS
-  - URL extraction fixed: filters 'X : https://...' table artifacts
-  - All functions deduplicated (file was corrupted with multiple copies)
-  - 12-point pre-post checklist
-  - Groq AI quality check (optional)
-  - Duplicate hash persistence across runs
+Telegram Affiliate Deal Bot  v10.0 — DEFINITIVE IMAGE FIX
+==========================================================
+Root cause of all image issues:
+  get_amazon_image_cdn() generated m.media-amazon.com/images/I/{ASIN}._SL500_.jpg
+  BUT Amazon image filenames are NOT ASINs — this URL always 404s.
+  Telegram's sendPhoto with a 404 URL fails → falls back to text → no image.
+
+Definitive fix:
+  has_photo=True  → Telethon downloads bytes → sendPhoto(bytes) [always works]
+                 → Also upload to Telegraph → URL stored for website
+  has_photo=False → Scrape real og:image from Amazon product page
+                 → sendPhoto(url) with real URL → Telegram fetches it
+                 → Same URL stored for website
+  No image at all → text-only post (honest, not fake)
 """
 
 import os, re, json, asyncio, requests, hashlib, io, random, time, traceback
@@ -17,13 +22,13 @@ from telethon import TelegramClient
 from telethon.sessions import StringSession
 from telethon.tl.types import MessageEntityTextUrl, MessageEntityUrl
 
-VERSION = "9.0"
+VERSION = "10.0"
 
 # ── Config ────────────────────────────────────────────────────────────────────
 def _require(key):
     val = os.environ.get(key, '').strip()
     if not val:
-        raise SystemExit(f"❌ Secret {key} is missing — set it in GitHub Secrets")
+        raise SystemExit(f"❌ Secret {key} missing — set in GitHub Secrets")
     return val
 
 API_ID          = int(_require("A1"))
@@ -42,36 +47,31 @@ HASHES_FILE = "seen_hashes.json"
 MAX_DEALS   = 200
 MAX_HASHES  = 2000
 
-# Short-link services that MUST be expanded to get the real product URL
 SHORTENER_DOMAINS = [
-    'ddime.in', 'amzn.clnk.in', 'clnk.in',   # deal channel shorteners
-    'amzn.to', 'amzn.in', 'a.co/',             # Amazon shorteners
-    'fktr.in', 'dl.flipkart.com',              # Flipkart shorteners
-    'bitli.store', 'bit.ly', 'cutt.ly',        # generic shorteners
+    'ddime.in', 'amzn.clnk.in', 'clnk.in',
+    'amzn.to', 'amzn.in', 'a.co/',
+    'fktr.in', 'dl.flipkart.com',
+    'bitli.store', 'bit.ly', 'cutt.ly',
     'rb.gy', 't.ly', 'tiny.cc', 'ow.ly',
     'shorturl.at', 'tinyurl.com',
 ]
 
-# Deal aggregator sites — their URLs are NOT product pages
 SOURCE_SITE_DOMAINS = [
     'desidime.com', 'dealsmagnet.com', 'freekaamaal.com',
     'lootdunia.com', 'dealsbazaar.in', 'hcti.io',
 ]
 
-# Stores supported by Cuelinks
 CUELINKS_DOMAINS = [
     'flipkart.com', 'myntra.com', 'ajio.com', 'nykaa.com',
     'tatacliq.com', 'shopsy.in', 'meesho.com', 'jiomart.com',
     'croma.com',
 ]
 
-# Social / noise URLs to skip
 IGNORE_URL_DOMAINS = [
     't.me', 'telegram.me', 'instagram.com', 'twitter.com',
     'facebook.com', 'youtube.com', 'play.google.com',
 ]
 
-# Noise line prefixes to strip from messages
 NOISE_PREFIXES = [
     'on #', 'read more', 'buy now', 'link:', 'join ',
     'follow', 'share ', 'deals by', 'source:', 'via ',
@@ -81,6 +81,7 @@ NOISE_PREFIXES = [
 BROWSE_HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36',
     'Accept-Language': 'en-IN,en;q=0.9',
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
 }
 
 
@@ -89,86 +90,55 @@ BROWSE_HEADERS = {
 # ─────────────────────────────────────────────────────────────────────────────
 
 def extract_text_urls(text):
-    """
-    Extract URLs from plain text.
-    KEY FIX: filters desidime table artifacts like 'a : https://fktr.in/Mrq'
-    where a single letter + space + colon + space precedes the URL.
-    """
+    """Extract URLs. Filters desidime 'X : https://...' table artifacts."""
     if not text:
         return []
     results = []
     for m in re.finditer(r'https?://\S+', text):
         pos = m.start()
-        url = m.group()
-        # Strip trailing punctuation
-        while url and url[-1] in '.,;:!?)>':
-            url = url[:-1]
+        url = m.group().rstrip('.,;:!?)>')
         if not url:
             continue
-        # Skip "X : https://..." single-letter table artifacts from desidime
         before4 = text[max(0, pos - 4):pos]
         if re.match(r'^[a-zA-Z] : $', before4):
             continue
-        # Accept if at start of string or preceded by whitespace/punctuation
-        if pos == 0:
-            results.append(url)
-        elif text[pos - 1] in ' \t\n\r([,:;=':
+        if pos == 0 or text[pos - 1] in ' \t\n\r([,:;=':
             results.append(url)
     return results
 
 def extract_href_urls(text):
-    """Extract URLs from HTML href attributes"""
-    return [u for u in re.findall(r'href=["\']([^"\']+)["\']', text or '')
-            if u.startswith('http')]
+    return [u for u in re.findall(r'href=["\']([^"\']+)["\']', text or '') if u.startswith('http')]
 
 def extract_all_urls_from_msg(msg):
-    """
-    Extract URLs from ALL sources in a Telegram message:
-    1. HTML href attributes (some channels post raw HTML)
-    2. Plain text URLs
-    3. Hidden entity URLs ([Buy Now](url) → entity.url)
-    """
     seen = []
     raw  = msg.text or msg.message or ''
-
-    # 1. HTML hrefs
     if 'href=' in raw:
         for url in extract_href_urls(raw):
-            if url not in seen:
-                seen.append(url)
-
-    # 2. Plain text URLs
+            if url not in seen: seen.append(url)
     for url in extract_text_urls(raw):
-        if url not in seen:
-            seen.append(url)
-
-    # 3. Entity URLs (hidden hyperlinks)
+        if url not in seen: seen.append(url)
     if msg.entities:
         for ent in msg.entities:
             if isinstance(ent, MessageEntityTextUrl):
-                if ent.url and ent.url not in seen:
-                    seen.append(ent.url)
+                if ent.url and ent.url not in seen: seen.append(ent.url)
             elif isinstance(ent, MessageEntityUrl):
                 u = raw[ent.offset: ent.offset + ent.length]
-                if u and u not in seen:
-                    seen.append(u)
+                if u and u not in seen: seen.append(u)
     return seen
 
-def is_amazon(url):        return bool(re.search(r'amazon\.in|amazon\.com', url or ''))
-def is_flipkart_fam(url):  return any(d in (url or '') for d in CUELINKS_DOMAINS)
-def is_source_site(url):   return any(d in (url or '') for d in SOURCE_SITE_DOMAINS)
-def is_shortener(url):     return any(d in (url or '') for d in SHORTENER_DOMAINS)
-def is_ignorable(url):     return any(d in (url or '') for d in IGNORE_URL_DOMAINS)
-def is_junk_url(url):      return is_source_site(url) or is_shortener(url) or is_ignorable(url)
+def is_amazon(url):       return bool(re.search(r'amazon\.in|amazon\.com', url or ''))
+def is_flipkart_fam(url): return any(d in (url or '') for d in CUELINKS_DOMAINS)
+def is_source_site(url):  return any(d in (url or '') for d in SOURCE_SITE_DOMAINS)
+def is_shortener(url):    return any(d in (url or '') for d in SHORTENER_DOMAINS)
+def is_ignorable(url):    return any(d in (url or '') for d in IGNORE_URL_DOMAINS)
+def is_junk_url(url):     return is_source_site(url) or is_shortener(url) or is_ignorable(url)
 
 def is_valid_url(url):
-    if not url or not url.startswith('https://'):
-        return False
+    if not url or not url.startswith('https://'): return False
     p = urllib.parse.urlparse(url)
     return bool(p.netloc) and bool(p.path)
 
 def expand_url(url, timeout=10):
-    """Follow all redirects. Returns (final_url, success_bool)."""
     for method in ('HEAD', 'GET'):
         try:
             if method == 'HEAD':
@@ -182,27 +152,18 @@ def expand_url(url, timeout=10):
     return url, False
 
 def expand_url_fully(url):
-    """Expand shortener, handling double-hop chains (e.g. ddime.in → amzn.clnk.in → amazon.in)"""
-    if not is_shortener(url):
-        return url, True
+    if not is_shortener(url): return url, True
     final, ok = expand_url(url)
-    if not ok:
-        return url, False
-    # If result is still a shortener, expand once more
+    if not ok: return url, False
     if is_shortener(final) and final != url:
-        print(f"    ↗↗ double-hop detected: {final[:50]}")
+        print(f"    ↗↗ double-hop: {final[:50]}")
         final2, ok2 = expand_url(final)
-        if ok2 and final2 != final:
-            return final2, True
+        if ok2 and final2 != final: return final2, True
     return final, True
 
 def get_asin(url):
     m = re.search(r'/(?:dp|gp/product|d)/([A-Z0-9]{10})(?:[/?&]|$)', url or '')
     return m.group(1) if m else None
-
-def get_amazon_image_cdn(url):
-    asin = get_asin(url)
-    return f"https://m.media-amazon.com/images/I/{asin}._SL500_.jpg" if asin else ''
 
 def make_amazon_affiliate(url):
     asin = get_asin(url)
@@ -215,8 +176,7 @@ def make_amazon_affiliate(url):
     return url + ('&' if '?' in url else '?') + f"tag={AMAZON_TAG}"
 
 def make_cuelinks_affiliate(url):
-    if not CUELINKS_KEY:
-        return None
+    if not CUELINKS_KEY: return None
     try:
         r = requests.get('https://api.cuelinks.com/v1/affiliate-url',
                          params={'apiKey': CUELINKS_KEY, 'url': url}, timeout=10)
@@ -225,9 +185,8 @@ def make_cuelinks_affiliate(url):
             print(f"    Cuelinks: {str(data)[:100]}")
             aff = (data.get('affiliateUrl') or data.get('affiliate_url') or
                    data.get('shortUrl')     or data.get('short_url'))
-            if aff and aff != url and is_valid_url(aff):
-                return aff
-            print("    Cuelinks: returned same/invalid URL")
+            if aff and aff != url and is_valid_url(aff): return aff
+            print("    Cuelinks: same/invalid URL")
         else:
             print(f"    Cuelinks HTTP {r.status_code}: {r.text[:80]}")
     except Exception as e:
@@ -235,8 +194,7 @@ def make_cuelinks_affiliate(url):
     return None
 
 def shorten(url):
-    if not is_valid_url(url):
-        return url
+    if not is_valid_url(url): return url
     try:
         r = requests.get('https://tinyurl.com/api-create.php', params={'url': url}, timeout=10)
         result = r.text.strip()
@@ -248,72 +206,103 @@ def shorten(url):
     return url
 
 def resolve_to_affiliate(raw_url):
-    """Convert URL → (affiliate_url, image_cdn_url). Returns (None,None) if unusable."""
+    """Returns (affiliate_url, product_page_url). product_page_url is the real Amazon/Flipkart URL for image scraping."""
     url = raw_url
+    product_url = ''
 
-    # Expand shorteners
     if is_shortener(url):
         expanded, ok = expand_url_fully(url)
         if not ok:
             print(f"    ✗ expand failed: {url[:50]}")
-            return None, None
+            return None, ''
         if is_source_site(expanded) or is_ignorable(expanded):
             print(f"    ✗ expanded to noise: {expanded[:50]}")
-            return None, None
+            return None, ''
         if not is_amazon(expanded) and not is_flipkart_fam(expanded):
-            print(f"    ✗ expanded to unknown store: {expanded[:50]}")
-            return None, None
+            print(f"    ✗ expanded to unknown: {expanded[:50]}")
+            return None, ''
         print(f"    ↗ {url[:40]} → {expanded[:55]}")
         url = expanded
 
     if is_ignorable(url) or is_source_site(url):
-        return None, None
+        return None, ''
 
     if is_amazon(url):
+        product_url = url
         aff   = make_amazon_affiliate(url)
         short = shorten(aff)
-        image = get_amazon_image_cdn(aff)
         print(f"    ✅ Amazon → {short[:55]}")
-        return short, image
+        return short, product_url
 
     if is_flipkart_fam(url):
+        product_url = url
         aff = make_cuelinks_affiliate(url)
         if aff:
             short = shorten(aff)
             print(f"    ✅ Cuelinks → {short[:55]}")
-            return short, ''
+            return short, product_url
         short = shorten(url)
         print(f"    ⚠️ Cuelinks failed, direct → {short[:55]}")
-        return short, ''
+        return short, product_url
 
     print(f"    ✗ unrecognised store: {url[:50]}")
-    return None, None
+    return None, ''
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# IMAGE HANDLING
+# IMAGE — DEFINITIVE APPROACH
 # ─────────────────────────────────────────────────────────────────────────────
 
-def download_image_bytes(image_url, referer='https://www.amazon.in/'):
-    if not image_url:
-        return None, None
-    try:
-        h = {**BROWSE_HEADERS, 'Referer': referer,
-             'Accept': 'image/avif,image/webp,image/apng,image/*;q=0.9'}
-        r = requests.get(image_url, headers=h, timeout=15, stream=True)
-        ctype = r.headers.get('content-type', '')
-        if r.status_code == 200 and 'image' in ctype and len(r.content) > 3000:
-            print(f"    📷 {len(r.content)//1024}KB downloaded")
-            return r.content, ctype
-    except Exception as e:
-        print(f"    📷 download failed: {e}")
-    return None, None
-
-async def get_photo_from_source(tg_client, msg):
+def scrape_product_image(product_url):
     """
-    Download photo bytes directly via Telethon (for sendPhoto).
-    Also tries to upload to Telegraph for website URL storage.
-    Returns (bytes_or_None, telegraph_url_or_empty).
+    Scrape the REAL product image URL from Amazon/Flipkart page.
+    Uses og:image meta tag — always the main product photo.
+    Returns image URL string or ''.
+    NOTE: Amazon product pages are accessible from GitHub Actions.
+          Only the CDN (m.media-amazon.com) is blocked, not amazon.in itself.
+    """
+    if not product_url:
+        return ''
+    try:
+        r = requests.get(product_url, headers=BROWSE_HEADERS, timeout=12)
+        if r.status_code != 200:
+            print(f"    🔍 page fetch {r.status_code} for {product_url[:50]}")
+            return ''
+        html = r.text
+
+        # Method 1: og:image meta tag (most reliable)
+        m = re.search(r'<meta[^>]+property=["\']og:image["\'][^>]+content=["\']([^"\']+)["\']', html)
+        if not m:
+            m = re.search(r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+property=["\']og:image["\']', html)
+        if m:
+            img = m.group(1)
+            if img.startswith('http') and 'amazon' in img or 'flipkart' in img or 'fkimg' in img:
+                print(f"    🔍 og:image: {img[:70]}")
+                return img
+
+        # Method 2: Amazon's hiRes image data in page JS
+        m = re.search(r'"large":"(https://m\.media-amazon\.com/images/I/[^"]+)"', html)
+        if m:
+            img = m.group(1)
+            print(f"    🔍 large img: {img[:70]}")
+            return img
+
+        # Method 3: landingImage
+        m = re.search(r'id=["\']landingImage["\'][^>]+src=["\']([^"\']+)["\']', html)
+        if m:
+            img = m.group(1)
+            print(f"    🔍 landingImage: {img[:70]}")
+            return img
+
+        print(f"    🔍 no image found in page")
+    except Exception as e:
+        print(f"    🔍 scrape failed: {e}")
+    return ''
+
+async def get_telethon_photo_bytes(tg_client, msg):
+    """
+    Download photo bytes directly via Telethon.
+    Returns (bytes, '') — bytes for sending, empty string (Telegraph upload is optional).
     """
     if not getattr(msg, 'photo', None):
         return None, ''
@@ -322,24 +311,27 @@ async def get_photo_from_source(tg_client, msg):
         if not data or len(data) < 3000:
             print("    📷 photo too small")
             return None, ''
-        print(f"    📷 {len(data)//1024}KB downloaded via Telethon")
-        # Upload to Telegraph for website storage (non-critical)
+        print(f"    📷 {len(data)//1024}KB via Telethon ✅")
+
+        # Try Telegraph upload for website URL (non-critical — don't let failure stop posting)
         telegraph_url = ''
         try:
             r = requests.post('https://telegra.ph/upload',
                               files={'file': ('p.jpg', io.BytesIO(data), 'image/jpeg')},
-                              timeout=15)
+                              timeout=12)
             if r.status_code == 200:
                 res = r.json()
                 if isinstance(res, list) and res:
                     telegraph_url = f"https://telegra.ph{res[0]['src']}"
-                    print(f"    📷 Telegraph URL saved: {telegraph_url}")
+                    print(f"    📷 Telegraph URL: {telegraph_url}")
         except Exception as te:
-            print(f"    📷 Telegraph upload skipped: {te}")
+            print(f"    📷 Telegraph skipped: {te}")
+
         return data, telegraph_url
     except Exception as e:
-        print(f"    📷 Telethon download failed: {e}")
+        print(f"    📷 Telethon failed: {e}")
     return None, ''
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # MESSAGE TEXT BUILDER
@@ -356,7 +348,6 @@ def sanitize_text(text, affiliate_url):
 
 def build_clean_text(msg, affiliate_url):
     raw = msg.text or msg.message or ''
-    # Strip HTML if present
     if '<' in raw and '>' in raw:
         raw = strip_html(raw)
         raw = re.sub(r'\s+', ' ', raw).strip()
@@ -366,23 +357,19 @@ def build_clean_text(msg, affiliate_url):
         s  = line.strip()
         sl = s.lower()
         if not s:
-            clean.append('')
-            continue
+            clean.append(''); continue
         if any(sl.startswith(p) for p in NOISE_PREFIXES): continue
         if re.match(r'^#\w', s): continue
         if re.match(r'^@\w', s): continue
         line_urls = extract_text_urls(s)
-        if line_urls and all(is_junk_url(u) for u in line_urls):
-            continue
+        if line_urls and all(is_junk_url(u) for u in line_urls): continue
         clean.append(line)
     result = re.sub(r'\n{3,}', '\n\n', '\n'.join(clean)).strip()
     result = sanitize_text(result, affiliate_url)
-    # Remove orphan label lines
     final = []
     for line in result.split('\n'):
         s = line.strip()
-        if re.match(r'^[\w\s]{2,20}:\s*$', s) and not extract_text_urls(s):
-            continue
+        if re.match(r'^[\w\s]{2,20}:\s*$', s) and not extract_text_urls(s): continue
         final.append(line)
     result = re.sub(r'\n{3,}', '\n\n', '\n'.join(final)).strip()
     if affiliate_url:
@@ -391,7 +378,7 @@ def build_clean_text(msg, affiliate_url):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# PRE-POST CHECKLIST (12 checks)
+# PRE-POST CHECKLIST
 # ─────────────────────────────────────────────────────────────────────────────
 
 class CheckResult:
@@ -399,12 +386,11 @@ class CheckResult:
         self.fixed  = []
         self.failed = []
     def fix(self, name, detail=""):
-        self.fixed.append(f"{name}" + (f": {detail}" if detail else ""))
+        self.fixed.append(name + (f": {detail}" if detail else ""))
     def fail(self, name, detail=""):
-        self.failed.append(f"{name}" + (f": {detail}" if detail else ""))
+        self.failed.append(name + (f": {detail}" if detail else ""))
     @property
-    def is_good(self):
-        return len(self.failed) == 0
+    def is_good(self): return len(self.failed) == 0
     def summary(self):
         lines = [f"  🔧 {f}" for f in self.fixed] + [f"  ❌ {f}" for f in self.failed]
         return '\n'.join(lines) if lines else "  ✅ all checks passed"
@@ -412,34 +398,32 @@ class CheckResult:
 def run_checklist(text, affiliate_url):
     r = CheckResult()
 
-    # 1. HTML tags
+    # 1. Strip HTML
     if re.search(r'<[a-zA-Z][^>]*>', text):
         text = re.sub(r'<[^>]+>', ' ', text)
         text = re.sub(r'\s+', ' ', text).strip()
         r.fix("HTML stripped")
 
-    # 2. Source site URLs
+    # 2. Remove source site URLs
     leaks = [u for u in extract_text_urls(text) if is_source_site(u)]
     if leaks:
         for u in leaks: text = text.replace(u, '')
         r.fix("source URLs removed", str(len(leaks)))
 
-    # 3. Shortener URLs (except our affiliate)
+    # 3. Remove shortener URLs (not our affiliate)
     short_leaks = [u for u in extract_text_urls(text)
                    if is_shortener(u) and u != affiliate_url]
     if short_leaks:
         for u in short_leaks: text = text.replace(u, '')
-        r.fix("shortener URLs removed", str(len(short_leaks)))
+        r.fix("shorteners removed", str(len(short_leaks)))
 
     # 4. Must have affiliate link
     if not affiliate_url:
-        r.fail("no affiliate URL")
-        return text, affiliate_url, r
+        r.fail("no affiliate URL"); return text, affiliate_url, r
 
     # 5. TinyURL homepage check
     if affiliate_url.rstrip('/') == 'https://tinyurl.com':
-        r.fail("TinyURL homepage — shortening failed")
-        return text, affiliate_url, r
+        r.fail("TinyURL homepage"); return text, affiliate_url, r
 
     # 6. Affiliate link in text
     if affiliate_url not in text:
@@ -447,54 +431,41 @@ def run_checklist(text, affiliate_url):
         r.fix("affiliate URL appended")
 
     # 7. Orphan label lines
-    fixed_lines = []
-    removed = 0
+    fixed_lines, removed = [], 0
     for line in text.split('\n'):
         s = line.strip()
         if re.match(r'^[\w\s]{2,20}:\s*$', s) and not extract_text_urls(s):
-            removed += 1
-            continue
+            removed += 1; continue
         fixed_lines.append(line)
     if removed:
         text = re.sub(r'\n{3,}', '\n\n', '\n'.join(fixed_lines)).strip()
-        r.fix("orphan labels removed", str(removed))
+        r.fix("orphan labels", str(removed))
 
-    # 8. Must have meaningful content
+    # 8. Must have content
     meaningful = re.sub(r'https?://\S+', '', text)
     meaningful = re.sub(r'[🔗🛒\s]', '', meaningful)
     if len(meaningful) < 10:
-        r.fail("empty content", f"only {len(meaningful)} chars")
-        return text, affiliate_url, r
+        r.fail("empty content"); return text, affiliate_url, r
 
-    # 9. Text length
+    # 9. Length
     if len(text) > 4096:
         text = text[:3900] + f"\n\n🔗 {affiliate_url}"
-        r.fix("trimmed to 4096")
+        r.fix("trimmed")
 
-    # 10. Duplicate channel branding
-    count = text.lower().count('@' + YOUR_CHANNEL.lower())
-    if count > 1:
-        text = re.sub(re.escape('@' + YOUR_CHANNEL), '', text, flags=re.IGNORECASE).strip()
-        text += f"\n\n🛒 Deals by @{YOUR_CHANNEL}"
-        r.fix("duplicate branding removed")
-
-    # 11. Price symbols (info only — never fail)
-    # 12. Product title
-    title_part = text.split('🔗')[0].strip()
-    words = [w for w in title_part.split() if len(w) > 2]
+    # 10. Product title
+    words = [w for w in text.split('🔗')[0].split() if len(w) > 2]
     if len(words) < 3:
-        r.fail("no product title", f"only {len(words)} words")
-        return text, affiliate_url, r
+        r.fail("no product title", f"{len(words)} words"); return text, affiliate_url, r
 
     return text, affiliate_url, r
 
 def groq_quality_check(text, affiliate_url):
-    if not GROQ_API_KEY:
-        return True, "no key"
+    """Advisory only — never blocks posting."""
+    if not GROQ_API_KEY: return True, "no key"
     snippet = text.split('🔗')[0].strip()[:400]
     prompt = (f'Check this deal post. Reply ONLY with JSON {{"ok":true/false,"reason":"one line"}}.\n'
-              f'Reject if: contains HTML tags, source site names (desidime/dealsmagnet), '
-              f'raw short URLs (ddime.in/fktr.in), or has no product name.\n\nPost:\n{snippet}')
+              f'Reject if: contains raw HTML tags or raw source site URLs (desidime.com/dealsmagnet.com).\n'
+              f'Do NOT reject for: channel names, product names, tinyurl links.\n\nPost:\n{snippet}')
     try:
         r = requests.post(
             "https://api.groq.com/openai/v1/chat/completions",
@@ -520,7 +491,7 @@ def groq_quality_check(text, affiliate_url):
 # ─────────────────────────────────────────────────────────────────────────────
 
 def post_photo_bytes(chat_id, img_bytes, caption, ctype='image/jpeg'):
-    """Send image bytes via multipart upload (for Telegraph/Telethon photos)"""
+    """Send image bytes — for Telethon-downloaded photos."""
     try:
         clean_cap = re.sub(r'<[^>]+>', '', caption)[:1024]
         ext = 'jpg' if 'jpeg' in ctype else ctype.split('/')[-1]
@@ -531,16 +502,13 @@ def post_photo_bytes(chat_id, img_bytes, caption, ctype='image/jpeg'):
             timeout=30,
         )
         if r.status_code != 200:
-            print(f"    sendPhoto(bytes) error: {r.text[:100]}")
+            print(f"    sendPhoto(bytes) error: {r.text[:120]}")
         return r.status_code == 200, r.text
     except Exception as e:
         return False, str(e)
 
 def post_photo_url(chat_id, image_url, caption):
-    """
-    Send image by URL — Telegram's servers fetch the image directly.
-    Works for Amazon CDN, Telegraph etc where GitHub Actions IPs are blocked.
-    """
+    """Send image by URL — Telegram's servers fetch it (not blocked like GH Actions)."""
     try:
         clean_cap = re.sub(r'<[^>]+>', '', caption)[:1024]
         r = requests.post(
@@ -549,14 +517,10 @@ def post_photo_url(chat_id, image_url, caption):
             timeout=20,
         )
         if r.status_code != 200:
-            print(f"    sendPhoto(url) error: {r.text[:100]}")
+            print(f"    sendPhoto(url) error: {r.text[:120]}")
         return r.status_code == 200, r.text
     except Exception as e:
         return False, str(e)
-
-def post_photo(chat_id, img_bytes, caption, ctype='image/jpeg'):
-    """Wrapper: use bytes if available, else fall back to text"""
-    return post_photo_bytes(chat_id, img_bytes, caption, ctype)
 
 def post_text(chat_id, text):
     try:
@@ -611,11 +575,10 @@ async def run():
     total         = 0
     chat_id       = f'@{YOUR_CHANNEL}'
 
-    print(f"v{VERSION} | @{YOUR_CHANNEL} | tag={AMAZON_TAG} | cuelinks={'on' if CUELINKS_KEY else 'off'} | groq={'on' if GROQ_API_KEY else 'off'}")
+    print(f"v{VERSION} | @{YOUR_CHANNEL} | tag={AMAZON_TAG} | cuelinks={'on' if CUELINKS_KEY else 'off'} | groq={'on (advisory)' if GROQ_API_KEY else 'off'}")
     print(f"Sources: {SOURCE_CHANNELS}")
     print(f"Loaded {len(posted_hashes)} seen hashes")
 
-    # Connect
     print("\nConnecting...")
     try:
         client = TelegramClient(StringSession(SESSION_STRING), API_ID, API_HASH)
@@ -643,11 +606,10 @@ async def run():
             print(f"  {channel}  last_id={last_id}  limit={limit}")
 
             try:
-                # Quick check: are there new messages?
                 latest = await client.get_messages(channel, limit=1)
                 if latest:
-                    latest_id    = latest[0].id
-                    new_avail    = max(0, latest_id - last_id)
+                    latest_id = latest[0].id
+                    new_avail = max(0, latest_id - last_id)
                     print(f"  latest_id={latest_id}  new≈{new_avail}")
                     if new_avail == 0:
                         print("  ⏭ no new messages")
@@ -663,35 +625,31 @@ async def run():
                     print(f"\n  MSG {msg.id}: {len(raw_text)}ch  photo={has_photo}")
 
                     if not raw_text.strip() and not has_photo:
-                        print("    skip: no content")
-                        continue
+                        print("    skip: no content"); continue
 
-                    # Dedup
                     msg_hash = hashlib.md5(raw_text[:200].encode()).hexdigest()[:10]
                     if msg_hash in posted_hashes:
-                        print("    skip: duplicate")
-                        continue
+                        print("    skip: duplicate"); continue
 
                     # 1. Extract URLs
                     all_urls = extract_all_urls_from_msg(msg)
                     print(f"    urls: {all_urls}")
 
-                    # 2. Resolve affiliate URL
+                    # 2. Resolve affiliate URL + get product page URL
                     affiliate_url = None
-                    image_cdn     = ''
+                    product_url   = ''
                     for url in all_urls:
                         if is_ignorable(url): continue
-                        aff, img = resolve_to_affiliate(url)
+                        aff, prod = resolve_to_affiliate(url)
                         if aff:
                             affiliate_url = aff
-                            image_cdn     = img or ''
+                            product_url   = prod
                             break
 
                     print(f"    affiliate: {affiliate_url or 'NONE'}")
 
                     if not affiliate_url and not has_photo:
-                        print("    skip: no affiliate and no photo")
-                        continue
+                        print("    skip: no affiliate and no photo"); continue
 
                     # 3. Build clean text
                     clean = build_clean_text(msg, affiliate_url)
@@ -700,63 +658,71 @@ async def run():
                     clean, affiliate_url, chk = run_checklist(clean, affiliate_url)
                     print(chk.summary())
                     if not chk.is_good:
-                        print("    ✗ checklist FAILED — skipping")
-                        continue
+                        print("    ✗ checklist FAILED — skipping"); continue
 
-                    # 5. Groq AI check — ADVISORY ONLY, never blocks posting
-                    # (Too many false positives when used as a gate)
+                    # 5. Groq — ADVISORY ONLY, never blocks
                     if GROQ_API_KEY:
                         ai_ok, ai_reason = groq_quality_check(clean, affiliate_url)
-                        if not ai_ok:
-                            print(f"    🤖 Groq warning (not blocking): {ai_reason}")
-                        else:
-                            print(f"    🤖 Groq OK: {ai_reason}")
+                        print(f"    🤖 Groq: {'OK' if ai_ok else 'warn'} — {ai_reason}")
 
-                    # Append branding
                     final_text = clean + f"\n\n🛒 Deals by @{YOUR_CHANNEL}"
 
-                    # 6. Get image
-                    img_bytes      = None
-                    telegraph_url  = ''
-                    # img_saved: best URL for website display
-                    # Set to image_cdn immediately so it's always populated for Amazon deals
-                    img_saved      = image_cdn  # fallback; overridden below if better URL found
+                    # ── IMAGE STRATEGY ────────────────────────────────────────
+                    # Case A: Source message has photo attached
+                    #   → Download bytes via Telethon → sendPhoto(bytes) [RELIABLE]
+                    #   → Also upload to Telegraph for website URL
+                    #
+                    # Case B: No photo, but Amazon/Flipkart deal
+                    #   → Scrape real og:image from product page
+                    #   → sendPhoto(url) — Telegram fetches it [works, no proxy issue]
+                    #   → Same URL stored for website
+                    #
+                    # Case C: No photo, no scrapeable image
+                    #   → Text-only post [honest, no fake URLs]
+                    # ─────────────────────────────────────────────────────────
+
+                    img_bytes     = None
+                    img_saved     = ''    # URL for website
+                    real_img_url  = ''    # real scraped image URL
 
                     if has_photo:
-                        print("    📷 downloading via Telethon...")
-                        img_bytes, telegraph_url = await get_photo_from_source(client, msg)
-                        # Best image URL for website = Telegraph > Amazon CDN
-                        img_saved = telegraph_url or image_cdn or ''
-                        if not img_bytes:
-                            print("    📷 Telethon failed, no bytes")
+                        # Case A: Telethon bytes
+                        img_bytes, telegraph_url = await get_telethon_photo_bytes(client, msg)
+                        img_saved = telegraph_url  # Telegraph URL for website
+                        # If Telegraph failed, try to scrape product page as fallback for website
+                        if not img_saved and product_url:
+                            img_saved = scrape_product_image(product_url)
 
-                    print(f"    img_saved={img_saved[:60] if img_saved else 'none'}")
+                    else:
+                        # Case B: Scrape product image
+                        if product_url:
+                            real_img_url = scrape_product_image(product_url)
+                            img_saved    = real_img_url
 
-                    # 7. Post
+                    print(f"    img: bytes={'yes '+str(len(img_bytes)//1024)+'KB' if img_bytes else 'no'}  url={img_saved[:50] if img_saved else 'none'}")
+
+                    # Post
                     ok_post = False
                     resp    = ''
 
                     if img_bytes:
-                        # Send actual bytes — most reliable
                         ok_post, resp = post_photo_bytes(chat_id, img_bytes, final_text)
                         if not ok_post:
                             print(f"    sendPhoto(bytes) failed: {resp[:80]}")
                             ok_post, resp = post_text(chat_id, final_text)
 
-                    elif image_cdn:
-                        # No source photo but have Amazon CDN URL —
-                        # Telegram's servers fetch it directly (not blocked like GH Actions)
-                        ok_post, resp = post_photo_url(chat_id, image_cdn, final_text)
+                    elif real_img_url:
+                        ok_post, resp = post_photo_url(chat_id, real_img_url, final_text)
                         if not ok_post:
                             print(f"    sendPhoto(url) failed: {resp[:80]}")
                             ok_post, resp = post_text(chat_id, final_text)
 
                     else:
-                        # No image at all — text only
                         ok_post, resp = post_text(chat_id, final_text)
 
                     if ok_post:
-                        print(f"    ✅ POSTED {'📷' if img_bytes else '📝'}")
+                        mode = '📷 bytes' if img_bytes else ('📷 url' if real_img_url else '📝 text')
+                        print(f"    ✅ POSTED {mode}")
                         posted_hashes.add(msg_hash)
                         deals = add_deal(deals, final_text, affiliate_url or '', channel, img_saved)
                         found += 1
