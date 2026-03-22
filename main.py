@@ -278,7 +278,14 @@ def post_telegram(bot_api, text):
 
 # ── Main run ──────────────────────────────────────────────────────────────────
 
-async def upload_to_telegraph(photo_bytes):
+def get_amazon_image_url(url):
+    """Extract ASIN from Amazon URL and return product image URL — no API needed"""
+    asin = re.search(r'/(?:dp|gp/product)/([A-Z0-9]{10})', url)
+    if asin:
+        return f"https://m.media-amazon.com/images/I/{asin.group(1)}._SL500_.jpg"
+    return ''
+
+
     """Upload image bytes to telegra.ph and return public URL"""
     try:
         import io
@@ -323,7 +330,8 @@ async def upload_to_telegraph(photo_bytes):
             if ok:
                 print(f"  ✅ {deal.title[:60]}")
                 seen.add(deal.uid)
-                deals = save_deal(deals, msg, aff, site_name)
+                image_url = get_amazon_image_url(aff) if is_amazon(aff) else ''
+                deals = save_deal(deals, msg, aff, site_name, image_url)
                 posted += 1
                 total  += 1
             else:
@@ -352,15 +360,23 @@ async def upload_to_telegraph(photo_bytes):
                         # rewrite affiliate links if possible
                         new_text, modified = rewrite_message(text)
 
-                        # download image and upload to Telegraph for public URL
+                        # get image — Amazon first (instant), Telegraph for others
                         image_url = ''
-                        if hasattr(msg, 'photo') and msg.photo:
+                        post_urls = extract_urls(new_text)
+                        deal_url = post_urls[0] if post_urls else ''
+
+                        # try Amazon image from ASIN
+                        if is_amazon(deal_url) or 'amazon' in deal_url:
+                            image_url = get_amazon_image_url(deal_url)
+
+                        # fallback: download from Telegram and upload to Telegraph
+                        if not image_url and hasattr(msg, 'photo') and msg.photo:
                             try:
                                 photo_bytes = await client.download_media(msg.photo, bytes)
                                 if photo_bytes:
                                     image_url = await upload_to_telegraph(photo_bytes)
                                     if image_url:
-                                        print(f"    📷 Image: {image_url}")
+                                        print(f"    📷 Telegraph: {image_url}")
                             except Exception as e:
                                 print(f"    📷 Image error: {e}")
 
@@ -371,8 +387,6 @@ async def upload_to_telegraph(photo_bytes):
                             ok, resp = post_telegram(bot_api, new_text)
                             if ok:
                                 print(f"  ✅ msg {msg.id} {'(affiliate)' if modified else ''} {'📷' if image_url else ''}")
-                                post_urls = extract_urls(new_text)
-                                deal_url = post_urls[0] if post_urls else ''
                                 deals = save_deal(deals, new_text, deal_url, ch, image_url)
                                 found += 1
                                 total += 1
