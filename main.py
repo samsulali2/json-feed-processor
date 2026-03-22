@@ -310,26 +310,36 @@ def download_image_bytes(image_url, referer='https://www.amazon.in/'):
     return None, None
 
 async def get_photo_from_source(tg_client, msg):
-    """Download source photo via Telethon → upload to Telegra.ph → return URL"""
+    """
+    Download photo bytes directly via Telethon (for sendPhoto).
+    Also tries to upload to Telegraph for website URL storage.
+    Returns (bytes_or_None, telegraph_url_or_empty).
+    """
     if not getattr(msg, 'photo', None):
-        return ''
+        return None, ''
     try:
         data = await tg_client.download_media(msg.photo, bytes)
         if not data or len(data) < 3000:
-            return ''
-        r = requests.post('https://telegra.ph/upload',
-                          files={'file': ('p.jpg', io.BytesIO(data), 'image/jpeg')},
-                          timeout=20)
-        if r.status_code == 200:
-            res = r.json()
-            if isinstance(res, list) and res:
-                url = f"https://telegra.ph{res[0]['src']}"
-                print(f"    📷 Telegraph → {url}")
-                return url
+            print("    📷 photo too small")
+            return None, ''
+        print(f"    📷 {len(data)//1024}KB downloaded via Telethon")
+        # Upload to Telegraph for website storage (non-critical)
+        telegraph_url = ''
+        try:
+            r = requests.post('https://telegra.ph/upload',
+                              files={'file': ('p.jpg', io.BytesIO(data), 'image/jpeg')},
+                              timeout=15)
+            if r.status_code == 200:
+                res = r.json()
+                if isinstance(res, list) and res:
+                    telegraph_url = f"https://telegra.ph{res[0]['src']}"
+                    print(f"    📷 Telegraph URL saved: {telegraph_url}")
+        except Exception as te:
+            print(f"    📷 Telegraph upload skipped: {te}")
+        return data, telegraph_url
     except Exception as e:
-        print(f"    📷 error: {e}")
-    return ''
-
+        print(f"    📷 Telethon download failed: {e}")
+    return None, ''
 
 # ─────────────────────────────────────────────────────────────────────────────
 # MESSAGE TEXT BUILDER
@@ -704,60 +714,41 @@ async def run():
                     # Append branding
                     final_text = clean + f"\n\n🛒 Deals by @{YOUR_CHANNEL}"
 
-                    # 6. Get image — three-layer strategy
-                    img_bytes    = None
-                    img_type     = 'image/jpeg'
-                    img_saved    = ''
-                    img_url_only = ''  # URL to send directly via Telegram API
+                    # 6. Get image
+                    img_bytes = None
+                    img_saved = ''  # stored in deals.json for website
 
-                    # Layer 1: Source message photo via Telethon → Telegraph
-                    # (Real product photo posted by source channel — always correct)
                     if has_photo:
-                        print("    📷 trying Telethon photo...")
-                        telegraph_url = await get_photo_from_source(client, msg)
-                        if telegraph_url:
-                            # Try downloading from Telegraph to send as bytes
-                            img_bytes, img_type = download_image_bytes(
-                                telegraph_url, referer='https://telegra.ph/')
-                            if img_bytes:
-                                img_saved = telegraph_url
-                                print(f"    📷 source: Telethon→Telegraph (bytes)")
-                            else:
-                                # Download failed but URL works — send URL directly
-                                img_url_only = telegraph_url
-                                img_saved    = telegraph_url
-                                print(f"    📷 source: Telethon→Telegraph (url)")
-
-                    # Layer 2: Amazon CDN by ASIN
-                    # GitHub Actions IPs are blocked from downloading Amazon CDN
-                    # BUT Telegram's own servers CAN fetch Amazon CDN images
-                    # So: store URL and send via post_photo_url()
-                    if not img_bytes and not img_url_only and image_cdn:
-                        img_url_only = image_cdn
-                        img_saved    = image_cdn
-                        print(f"    📷 source: Amazon CDN (url direct)")
+                        print("    📷 downloading via Telethon...")
+                        img_bytes, telegraph_url = await get_photo_from_source(client, msg)
+                        if img_bytes:
+                            # Telegraph URL for website; fallback to Amazon CDN
+                            img_saved = telegraph_url or image_cdn or ''
+                        else:
+                            print("    📷 Telethon failed, no image bytes")
 
                     # 7. Post
                     ok_post = False
                     resp    = ''
 
                     if img_bytes:
-                        # Best: send actual image bytes
-                        ok_post, resp = post_photo_bytes(chat_id, img_bytes, final_text, img_type)
+                        # Send raw bytes — most reliable, no external URL dependency
+                        ok_post, resp = post_photo_bytes(chat_id, img_bytes, final_text)
                         if not ok_post:
-                            print("    sendPhoto(bytes) failed, trying URL method")
-                            if img_url_only:
-                                ok_post, resp = post_photo_url(chat_id, img_url_only, final_text)
-                            if not ok_post:
-                                ok_post, resp = post_text(chat_id, final_text)
-                    elif img_url_only:
-                        # Good: let Telegram fetch the image URL
-                        ok_post, resp = post_photo_url(chat_id, img_url_only, final_text)
-                        if not ok_post:
-                            print("    sendPhoto(url) failed, falling back to text")
+                            print(f"    sendPhoto(bytes) failed: {resp[:80]}")
                             ok_post, resp = post_text(chat_id, final_text)
+
+                    elif image_cdn:
+                        # No source photo but Amazon deal — use CDN URL
+                        # Telegram's servers fetch it (their IPs are not blocked)
+                        img_saved = image_cdn
+                        ok_post, resp = post_photo_url(chat_id, image_cdn, final_text)
+                        if not ok_post:
+                            print(f"    sendPhoto(url) failed: {resp[:80]}")
+                            ok_post, resp = post_text(chat_id, final_text)
+
                     else:
-                        # No image available — text only
+                        # No image — text only
                         ok_post, resp = post_text(chat_id, final_text)
 
                     if ok_post:
