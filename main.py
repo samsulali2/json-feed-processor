@@ -168,10 +168,9 @@ def process_url(url):
 def process_message(raw_text):
     """
     Process a Telegram message:
-    - Find all URLs
-    - Try to get affiliate link for each
-    - Clean up source site lines
-    - Return (clean_text, affiliate_url, image_url)
+    - Expand short URLs and replace with affiliate links inline
+    - Remove source site reference lines
+    - Return (clean_text, best_affiliate_url, image_url)
     """
     if not raw_text:
         return None, None, None
@@ -180,45 +179,42 @@ def process_message(raw_text):
     if not urls:
         return None, None, None
 
-    affiliate_url = None
-    image_url = ''
+    IGNORE = ['t.me', 'telegram.me', 'instagram.com', 'twitter.com',
+              'facebook.com', 'youtube.com', 'hcti.io', 'play.google.com']
 
-    # Try each URL to find an affiliate-able one
+    working_text = raw_text
+    best_affiliate = None
+    best_image = ''
+
+    # Step 1: Replace every processable URL inline with affiliate version
     for url in urls:
-        # Skip Telegram, social media, image links
-        if any(d in url for d in ['t.me', 'telegram.me', 'instagram.com',
-                                   'twitter.com', 'facebook.com', 'youtube.com',
-                                   'hcti.io', 'play.google.com']):
+        if any(d in url for d in IGNORE):
             continue
-
         aff, img = process_url(url)
         if aff:
-            affiliate_url = aff
-            image_url = img or ''
-            break
+            # Replace original URL with affiliate in message text
+            working_text = working_text.replace(url, aff)
+            if not best_affiliate:
+                best_affiliate = aff
+                best_image = img or ''
+        else:
+            # URL is not monetizable and is a source site — remove it from text
+            if is_source_site(url) or needs_expanding(url):
+                working_text = working_text.replace(url, '')
 
-    # Clean the message text
-    lines = raw_text.split('\n')
+    # Step 2: Clean up lines
+    lines = working_text.split('\n')
     clean_lines = []
     for line in lines:
         stripped = line.strip()
         if not stripped:
             clean_lines.append('')
             continue
-        # Remove lines that are just source site references
-        skip = False
-        for url in extract_urls(stripped):
-            if is_source_site(url):
-                skip = True
-                break
-        if skip:
-            continue
-        # Remove common noise lines
         if stripped.startswith('On #'):
             continue
         if stripped.lower().startswith('read more'):
             continue
-        if stripped.lower().startswith('buy now') and not affiliate_url:
+        if stripped.lower().startswith('buy now'):
             continue
         clean_lines.append(line)
 
@@ -227,7 +223,7 @@ def process_message(raw_text):
     if not clean_text:
         return None, None, None
 
-    return clean_text, affiliate_url, image_url
+    return clean_text, best_affiliate, best_image
 
 
 # ── State / Deals ─────────────────────────────────────────────────────────────
@@ -357,8 +353,10 @@ async def run():
                             image_url = await upload_to_telegraph(client, msg)
 
                         # Build final message
+                        # affiliate URLs already replaced inline in clean_text
+                        # only append link if not already in text
                         final_text = clean_text
-                        if affiliate_url:
+                        if affiliate_url and affiliate_url not in clean_text:
                             final_text += f"\n\n🔗 {affiliate_url}"
                         final_text += f"\n\n🛒 Deals by @{YOUR_CHANNEL}"
 
