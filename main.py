@@ -400,11 +400,12 @@ async def one_run():
             last_id     = state.get(channel, 0)
             new_last_id = last_id
             found       = 0
+            msg_limit   = 5 if last_id == 0 else 20
             print(f"\n[{channel}] last id: {last_id}")
             try:
                 async def read_channel():
                     nonlocal new_last_id, found, total, deals
-                    async for msg in client.iter_messages(channel, min_id=last_id, limit=50):
+                    async for msg in client.iter_messages(channel, min_id=last_id, limit=msg_limit):
                         if msg.id <= last_id:
                             continue
                         text = getattr(msg, 'text', '') or getattr(msg, 'caption', '') or ''
@@ -427,7 +428,7 @@ async def one_run():
                                 print(f"  ❌ {resp[:80]}")
                         if msg.id > new_last_id:
                             new_last_id = msg.id
-                await asyncio.wait_for(read_channel(), timeout=30)
+                await asyncio.wait_for(read_channel(), timeout=20)
             except asyncio.TimeoutError:
                 print(f"  ⏱️ Timeout — skipping {channel}")
             except Exception as e:
