@@ -357,6 +357,7 @@ def save_deal(deals, text, url, source):
 async def one_run():
     state   = load_state()
     seen    = load_seen()
+    deals   = load_deals()
     bot_api = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
     total   = 0
 
@@ -384,6 +385,7 @@ async def one_run():
             if ok:
                 print(f"  ✅ {deal.title[:60]}")
                 seen.add(deal.uid)
+                deals = save_deal(deals, msg, aff, site_name)
                 posted += 1
                 total  += 1
             else:
@@ -414,6 +416,10 @@ async def one_run():
                         ok, resp = post_telegram(bot_api, new_text)
                         if ok:
                             print(f"  ✅ msg {msg.id}")
+                            # extract first url from new_text as deal url
+                            urls = re.findall(r'https?://[^\s\)]+', new_text)
+                            deal_url = urls[0] if urls else ''
+                            deals = save_deal(deals, new_text, deal_url, channel)
                             found += 1
                             total += 1
                         else:
@@ -427,7 +433,7 @@ async def one_run():
 
     save_state(state)
     save_seen(seen)
-    print(f"\n✅ This run: {total} posted")
+    print(f"\n✅ This run: {total} posted | deals.json: {len(deals)} entries")
 
 
 # ── Continuous loop ───────────────────────────────────────────────────────────
