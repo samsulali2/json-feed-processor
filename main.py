@@ -715,40 +715,43 @@ async def run():
                     final_text = clean + f"\n\n🛒 Deals by @{YOUR_CHANNEL}"
 
                     # 6. Get image
-                    img_bytes = None
-                    img_saved = ''  # stored in deals.json for website
+                    img_bytes      = None
+                    telegraph_url  = ''
+                    # img_saved: best URL for website display
+                    # Set to image_cdn immediately so it's always populated for Amazon deals
+                    img_saved      = image_cdn  # fallback; overridden below if better URL found
 
                     if has_photo:
                         print("    📷 downloading via Telethon...")
                         img_bytes, telegraph_url = await get_photo_from_source(client, msg)
-                        if img_bytes:
-                            # Telegraph URL for website; fallback to Amazon CDN
-                            img_saved = telegraph_url or image_cdn or ''
-                        else:
-                            print("    📷 Telethon failed, no image bytes")
+                        # Best image URL for website = Telegraph > Amazon CDN
+                        img_saved = telegraph_url or image_cdn or ''
+                        if not img_bytes:
+                            print("    📷 Telethon failed, no bytes")
+
+                    print(f"    img_saved={img_saved[:60] if img_saved else 'none'}")
 
                     # 7. Post
                     ok_post = False
                     resp    = ''
 
                     if img_bytes:
-                        # Send raw bytes — most reliable, no external URL dependency
+                        # Send actual bytes — most reliable
                         ok_post, resp = post_photo_bytes(chat_id, img_bytes, final_text)
                         if not ok_post:
                             print(f"    sendPhoto(bytes) failed: {resp[:80]}")
                             ok_post, resp = post_text(chat_id, final_text)
 
                     elif image_cdn:
-                        # No source photo but Amazon deal — use CDN URL
-                        # Telegram's servers fetch it (their IPs are not blocked)
-                        img_saved = image_cdn
+                        # No source photo but have Amazon CDN URL —
+                        # Telegram's servers fetch it directly (not blocked like GH Actions)
                         ok_post, resp = post_photo_url(chat_id, image_cdn, final_text)
                         if not ok_post:
                             print(f"    sendPhoto(url) failed: {resp[:80]}")
                             ok_post, resp = post_text(chat_id, final_text)
 
                     else:
-                        # No image — text only
+                        # No image at all — text only
                         ok_post, resp = post_text(chat_id, final_text)
 
                     if ok_post:
