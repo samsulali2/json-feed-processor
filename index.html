@@ -674,10 +674,17 @@
       grid.innerHTML = '<div class="loading"><p>🔍 No deals found. Check back soon!</p></div>';
       return;
     }
-    grid.innerHTML = deals.map((deal, i) => `
+    grid.innerHTML = deals.map((deal, i) => {
+      const store = getStore(deal.text||'', deal.url||'');
+      const imageHtml = deal.has_image ? `
+        <div style="background:linear-gradient(135deg,#1a2a3a,#16213E); height:120px; display:flex; align-items:center; justify-content:center; border-bottom:1px solid rgba(255,255,255,0.05);">
+          <span style="font-size:36px; opacity:0.4">🖼️</span>
+        </div>` : '';
+      return `
       <div class="deal-card" style="animation-delay:${i * 0.04}s">
+        ${imageHtml}
         <div class="card-header">
-          ${getStoreBadge(getStore(deal.text||'', deal.url||''))}
+          ${getStoreBadge(store)}
           <span class="time-ago">${timeAgo(deal.timestamp)}</span>
         </div>
         <div class="card-body">
@@ -688,7 +695,8 @@
             🛒 Grab This Deal →
           </a>
         </div>
-      </div>`).join('');
+      </div>`;
+    }).join('');
   }
 
   function filterDeals(type, btn) {
