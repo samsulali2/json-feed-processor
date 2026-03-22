@@ -257,10 +257,10 @@ def load_deals():
         with open(DEALS_FILE) as f: return json.load(f)
     return []
 
-def save_deal(deals, text, url, source, has_image=False):
+def save_deal(deals, text, url, source, image_url=''):
     deals.insert(0, {
         'text': text, 'url': url, 'source': source,
-        'has_image': has_image,
+        'image': image_url,
         'timestamp': datetime.now(timezone.utc).isoformat()
     })
     deals = deals[:MAX_DEALS]
@@ -278,7 +278,21 @@ def post_telegram(bot_api, text):
 
 # ── Main run ──────────────────────────────────────────────────────────────────
 
-async def run():
+async def upload_to_telegraph(photo_bytes):
+    """Upload image bytes to telegra.ph and return public URL"""
+    try:
+        import io
+        files = {'file': ('image.jpg', io.BytesIO(photo_bytes), 'image/jpeg')}
+        resp = requests.post('https://telegra.ph/upload', files=files, timeout=15)
+        if resp.status_code == 200:
+            data = resp.json()
+            if isinstance(data, list) and data:
+                return f"https://telegra.ph{data[0]['src']}"
+    except Exception as e:
+        print(f"    Telegraph upload error: {e}")
+    return ''
+
+
     state   = load_state()
     seen    = load_seen()
     deals   = load_deals()
@@ -338,8 +352,17 @@ async def run():
                         # rewrite affiliate links if possible
                         new_text, modified = rewrite_message(text)
 
-                        # check if message has image
-                        has_image = hasattr(msg, 'photo') and msg.photo is not None
+                        # download image and upload to Telegraph for public URL
+                        image_url = ''
+                        if hasattr(msg, 'photo') and msg.photo:
+                            try:
+                                photo_bytes = await client.download_media(msg.photo, bytes)
+                                if photo_bytes:
+                                    image_url = await upload_to_telegraph(photo_bytes)
+                                    if image_url:
+                                        print(f"    📷 Image: {image_url}")
+                            except Exception as e:
+                                print(f"    📷 Image error: {e}")
 
                         # post if has any URL
                         urls = extract_urls(text)
@@ -347,10 +370,10 @@ async def run():
                             new_text += f"\n\n🛒 Deals by @{YOUR_CHANNEL}"
                             ok, resp = post_telegram(bot_api, new_text)
                             if ok:
-                                print(f"  ✅ msg {msg.id} {'(affiliate)' if modified else ''} {'📷' if has_image else ''}")
+                                print(f"  ✅ msg {msg.id} {'(affiliate)' if modified else ''} {'📷' if image_url else ''}")
                                 post_urls = extract_urls(new_text)
                                 deal_url = post_urls[0] if post_urls else ''
-                                deals = save_deal(deals, new_text, deal_url, ch, has_image)
+                                deals = save_deal(deals, new_text, deal_url, ch, image_url)
                                 found += 1
                                 total += 1
                             else:
