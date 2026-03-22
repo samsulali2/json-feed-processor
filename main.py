@@ -48,7 +48,7 @@ SHORTENERS = [
 
 SKIP_DOMAINS = [
     'dealsmagnet.com', 'desidime.com', 'freekaamaal.com', 'lootdunia.com',
-    'dealsbazaar.in', 't.me', 'telegram.me', 'hcti.io',
+    'dealsbazaar.in', 'ddime.in', 't.me', 'telegram.me', 'hcti.io',
     'play.google.com', 'instagram.com', 'twitter.com', 'facebook.com',
 ]
 
@@ -165,7 +165,7 @@ def clean_message(text):
             continue
         if s.startswith('On #'):
             continue
-        if s.lower().startswith('link:'):
+        if s.lower().startswith('link:') or s.lower().startswith('read more') or s.lower().startswith('buy now'):
             continue
         clean_lines.append(line)
     result = '\n'.join(clean_lines)
@@ -459,6 +459,7 @@ async def run():
 
     # ── 2. Telegram channels ─────────────────────────────────────────────────
     print("\n── Telegram channels ──")
+    posted_hashes = set()  # prevent cross-channel duplicates
     async with TelegramClient(StringSession(SESSION_STRING), API_ID, API_HASH) as client:
         for channel in SOURCE_CHANNELS:
             if not channel: continue
@@ -515,12 +516,21 @@ async def run():
                             except Exception:
                                 pass
 
-                        # Step 6: post
+                        # Step 6: check duplicate across channels
+                        content_hash = hashlib.md5(clean_text[:100].encode()).hexdigest()[:8]
+
+                        # Step 7: skip if already posted from another channel
+                        if content_hash in posted_hashes:
+                            if msg.id > new_last_id: new_last_id = msg.id
+                            continue
+
+                        # Step 8: post
                         if new_text.strip():
                             out = new_text + f"\n\n🛒 Deals by @{YOUR_CHANNEL}"
                             ok, resp = post_telegram(bot_api, out)
                             if ok:
                                 print(f"  ✅ msg {msg.id} {'(aff)' if modified else ''}")
+                                posted_hashes.add(content_hash)
                                 deals = save_deal(deals, out, deal_url, ch, image_url)
                                 found += 1
                                 total += 1
