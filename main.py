@@ -194,14 +194,26 @@ async def upload_to_telegraph(photo_bytes):
 # ── Deal class ────────────────────────────────────────────────────────────────
 
 class Deal:
-    def __init__(self, title, url, source):
-        self.title  = title.strip()[:300]
-        self.url    = url
-        self.source = source
-        self.uid    = hashlib.md5(url.encode()).hexdigest()[:12]
+    def __init__(self, title, url, source, image_url='', price='', original_price='', discount=''):
+        self.title          = title.strip()[:300]
+        self.url            = url
+        self.source         = source
+        self.image_url      = image_url
+        self.price          = price
+        self.original_price = original_price
+        self.discount       = discount
+        self.uid            = hashlib.md5(url.encode()).hexdigest()[:12]
 
     def to_telegram(self, channel, short_url):
-        return f"🔥 {self.title}\n\n🔗 {short_url}\n\n🛒 Deals by @{channel}"
+        msg = f"🔥 {self.title}\n"
+        if self.discount:
+            msg += f"🏷️ {self.discount}% OFF"
+        if self.price:
+            msg += f" | ✅ ₹{self.price}"
+        if self.original_price:
+            msg += f" ❌ ₹{self.original_price}"
+        msg += f"\n\n🔗 {short_url}\n\n🛒 Deals by @{channel}"
+        return msg
 
 
 # ── Scrapers ──────────────────────────────────────────────────────────────────
@@ -246,22 +258,71 @@ def scrape_freekaamaal():
     return deals
 
 def scrape_dealsmagnet():
+    """
+    Proper scraper based on dealsmagnet.com HTML structure:
+    - Deal cards: .col-lg-4 .row.shadow-sm
+    - Title: .details-block .title a
+    - Image: img[data-src] inside col-4
+    - Price: .DiscountedPrice
+    - Original: .OriginalPrice
+    - Discount: .Discount
+    - Buy button: button.buy-button with data-code="d=XXXX"
+    - Buy URL: https://www.dealsmagnet.com/buy?d=XXXX
+    """
     deals = []
     try:
-        r = requests.get('https://dealsmagnet.com/', headers=HEADERS, timeout=15)
+        r = requests.get('https://www.dealsmagnet.com/new', headers=HEADERS, timeout=15)
         soup = BeautifulSoup(r.text, 'html.parser')
-        items = soup.select('article') or soup.select('.post')
-        for item in items[:40]:
-            title_el = item.select_one('h2 a') or item.select_one('h3 a') or item.select_one('.entry-title a')
-            link_el  = item.select_one('a[href*="amazon"]') or item.select_one('a[href*="flipkart"]')
-            if not title_el: continue
-            title = title_el.get_text(strip=True)
-            url   = link_el['href'] if link_el else title_el.get('href', '')
-            if not url or not url.startswith('http'): continue
-            deals.append(Deal(title, url, 'dealsmagnet'))
+
+        # Each deal card is a col-lg-4 containing a row.shadow-sm
+        items = soup.select('div.col-lg-4, div.col-md-6')
+        print(f"  dealsmagnet: {len(items)} containers found")
+
+        for item in items[:60]:
+            try:
+                # Title
+                title_el = item.select_one('.details-block .title a') or item.select_one('.title a')
+                if not title_el: continue
+                title = title_el.get_text(strip=True)
+                if not title or len(title) < 5: continue
+
+                # Image from data-src
+                img_el = item.select_one('img[data-src]')
+                image_url = img_el['data-src'] if img_el and img_el.get('data-src') else ''
+                # Fix relative URLs
+                if image_url and image_url.startswith('/'):
+                    image_url = 'https://www.dealsmagnet.com' + image_url
+
+                # Price
+                price_el    = item.select_one('.DiscountedPrice')
+                orig_el     = item.select_one('.OriginalPrice')
+                discount_el = item.select_one('.Discount')
+                price    = price_el.get_text(strip=True).replace('₹','').replace(',','').strip() if price_el else ''
+                orig     = orig_el.get_text(strip=True).replace('₹','').replace(',','').strip() if orig_el else ''
+                discount = discount_el.get_text(strip=True).replace('%','').replace('off','').replace('\n','').strip() if discount_el else ''
+
+                # Buy URL from button data-code
+                buy_btn = item.select_one('button.buy-button')
+                if buy_btn and buy_btn.get('data-code'):
+                    code = buy_btn['data-code'].split('&')[0]  # get d=XXXX part
+                    buy_url = f"https://www.dealsmagnet.com/buy?{code}"
+                else:
+                    # fallback to deal page link
+                    link_el = item.select_one('a[href*="/deal/"]')
+                    buy_url = link_el['href'] if link_el else ''
+                    if buy_url and not buy_url.startswith('http'):
+                        buy_url = 'https://www.dealsmagnet.com' + buy_url
+
+                if not buy_url: continue
+
+                deals.append(Deal(title, buy_url, 'dealsmagnet', image_url, price, orig, discount))
+
+            except Exception:
+                continue
+
     except Exception as e:
         print(f"  dealsmagnet error: {e}")
-    print(f"  dealsmagnet: {len(deals)} found")
+    print(f"  dealsmagnet: {len(deals)} deals found")
     return deals
 
 def scrape_lootdunia():
@@ -368,7 +429,8 @@ async def run():
             if ok:
                 print(f"  ✅ {deal.title[:60]}")
                 seen.add(deal.uid)
-                image_url = get_amazon_image_url(aff) if is_amazon(aff) else ''
+                # use deal's own image if available, else try Amazon image
+                image_url = deal.image_url or (get_amazon_image_url(aff) if is_amazon(aff) else '')
                 deals = save_deal(deals, msg, aff, site_name, image_url)
                 posted += 1
                 total  += 1
