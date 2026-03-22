@@ -1,14 +1,8 @@
 """
-Telegram Affiliate Deal Bot
-- Scrapes: desidime.com, freekaamaal.com, dealsmagnet.com, lootdunia.com
-- Reads Telegram source channels
-- Amazon  → clean affiliate URL via TinyURL
-- Flipkart/Myntra/Ajio etc → Cuelinks API
-- Posts to your Telegram channel
-- Saves deals.json for website
+Telegram Affiliate Deal Bot — json-feed-processor
 """
 
-import os, re, json, asyncio, requests, hashlib
+import os, re, json, asyncio, requests, hashlib, io
 from datetime import datetime, timezone
 from bs4 import BeautifulSoup
 from telethon import TelegramClient
@@ -24,11 +18,11 @@ SOURCE_CHANNELS  = [c.strip().lstrip('@') for c in os.environ["A6"].split(",")]
 AMAZON_AFFILIATE = os.environ["A7"].strip()
 CUELINKS_API_KEY = os.environ.get("A8", "").strip()
 
-STATE_FILE   = "last_seen.json"
-SEEN_FILE    = "seen_web.json"
-DEALS_FILE   = "deals.json"
-MAX_DEALS    = 200
-MAX_WEB_RUN  = 5
+STATE_FILE  = "last_seen.json"
+SEEN_FILE   = "seen_web.json"
+DEALS_FILE  = "deals.json"
+MAX_DEALS   = 200
+MAX_WEB_RUN = 5
 
 HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36',
@@ -40,6 +34,12 @@ CUELINKS_DOMAINS = {
     'tatacliq.com', 'shopsy.in', 'meesho.com', 'jiomart.com',
     'croma.com', 'vijaysales.com', 'reliancedigital.com',
 }
+
+SHORTENERS = [
+    'bitli.store', 'bit.ly', 'tiny.cc', 'ow.ly', 'ddime.in',
+    'clnk.in', 'shrinkme.io', 'ouo.io', 'adf.ly', 'shorturl.at',
+    'cutt.ly', 'rb.gy', 't.ly',
+]
 # ─────────────────────────────────────────────────────────────────────────────
 
 
@@ -50,6 +50,9 @@ def is_amazon(url):
 
 def is_cuelinks_supported(url):
     return any(d in url for d in CUELINKS_DOMAINS)
+
+def is_shortener(url):
+    return any(s in url for s in SHORTENERS)
 
 def expand_short_url(url):
     try:
@@ -105,14 +108,15 @@ def process_cuelinks_url(url):
     return None
 
 def make_affiliate(url):
-    # Step 1 — expand third-party shorteners to get real URL
-    if is_known_shortener(url):
-        print(f"    🔗 Expanding shortener: {url}")
-        url = expand_short_url(url)
-        print(f"    🔗 Expanded to: {url[:80]}")
-        # if expansion failed or returned same URL, skip
-        if is_known_shortener(url):
-            return None
+    # Step 1 — expand third-party shorteners first
+    if is_shortener(url):
+        print(f"    🔗 Expanding: {url}")
+        expanded = expand_short_url(url)
+        if expanded and expanded != url and not is_shortener(expanded):
+            url = expanded
+            print(f"    🔗 → {url[:80]}")
+        else:
+            return None  # couldn't expand
 
     # Step 2 — process as affiliate
     if is_amazon(url) or re.search(r'amzn\.to|amzn\.in|a\.co/', url):
@@ -121,17 +125,17 @@ def make_affiliate(url):
         return process_cuelinks_url(url)
     return None
 
-def is_known_shortener(url):
-    """Third-party shorteners that need expanding first"""
-    shorteners = ['bitli.store', 'bit.ly', 'tiny.cc', 'ow.ly', 'ddime.in',
-                  'clnk.in', 'shrinkme.io', 'ouo.io', 'adf.ly', 'shorturl.at',
-                  'cutt.ly', 'rb.gy', 't.ly', 'shorturl.at']
-    return any(s in url for s in shorteners)
+def get_amazon_image_url(url):
+    """Get Amazon product image from ASIN — instant, no API needed"""
+    asin = re.search(r'/(?:dp|gp/product)/([A-Z0-9]{10})', url)
+    if asin:
+        return f"https://m.media-amazon.com/images/I/{asin.group(1)}._SL500_.jpg"
+    return ''
 
 def extract_urls(text):
     return re.findall(r'https?://[^\s\)\]>\"\']+', text or '')
 
-
+def rewrite_message(text):
     urls = extract_urls(text)
     modified = False
     new_text = text
@@ -141,6 +145,22 @@ def extract_urls(text):
             new_text = new_text.replace(url, aff)
             modified = True
     return new_text, modified
+
+
+# ── Telegraph image upload ────────────────────────────────────────────────────
+
+async def upload_to_telegraph(photo_bytes):
+    """Upload image to telegra.ph and return public URL"""
+    try:
+        files = {'file': ('image.jpg', io.BytesIO(photo_bytes), 'image/jpeg')}
+        resp = requests.post('https://telegra.ph/upload', files=files, timeout=15)
+        if resp.status_code == 200:
+            data = resp.json()
+            if isinstance(data, list) and data:
+                return f"https://telegra.ph{data[0]['src']}"
+    except Exception as e:
+        print(f"    Telegraph error: {e}")
+    return ''
 
 
 # ── Deal class ────────────────────────────────────────────────────────────────
@@ -268,8 +288,10 @@ def load_deals():
 
 def save_deal(deals, text, url, source, image_url=''):
     deals.insert(0, {
-        'text': text, 'url': url, 'source': source,
-        'image': image_url,
+        'text':      text,
+        'url':       url,
+        'source':    source,
+        'image':     image_url,
         'timestamp': datetime.now(timezone.utc).isoformat()
     })
     deals = deals[:MAX_DEALS]
@@ -285,30 +307,9 @@ def post_telegram(bot_api, text):
     return r.status_code == 200, r.text
 
 
-# ── Main run ──────────────────────────────────────────────────────────────────
+# ── Main ──────────────────────────────────────────────────────────────────────
 
-def get_amazon_image_url(url):
-    """Extract ASIN from Amazon URL and return product image URL — no API needed"""
-    asin = re.search(r'/(?:dp|gp/product)/([A-Z0-9]{10})', url)
-    if asin:
-        return f"https://m.media-amazon.com/images/I/{asin.group(1)}._SL500_.jpg"
-    return ''
-
-
-    """Upload image bytes to telegra.ph and return public URL"""
-    try:
-        import io
-        files = {'file': ('image.jpg', io.BytesIO(photo_bytes), 'image/jpeg')}
-        resp = requests.post('https://telegra.ph/upload', files=files, timeout=15)
-        if resp.status_code == 200:
-            data = resp.json()
-            if isinstance(data, list) and data:
-                return f"https://telegra.ph{data[0]['src']}"
-    except Exception as e:
-        print(f"    Telegraph upload error: {e}")
-    return ''
-
-
+async def run():
     state   = load_state()
     seen    = load_seen()
     deals   = load_deals()
@@ -366,36 +367,34 @@ def get_amazon_image_url(url):
                             if msg.id > new_last_id: new_last_id = msg.id
                             continue
 
-                        # rewrite affiliate links if possible
+                        # rewrite affiliate links
                         new_text, modified = rewrite_message(text)
 
-                        # get image — Amazon first (instant), Telegraph for others
+                        # get image — Amazon image from ASIN (instant)
+                        # or download from Telegram and upload to Telegraph
                         image_url = ''
                         post_urls = extract_urls(new_text)
-                        deal_url = post_urls[0] if post_urls else ''
+                        deal_url  = post_urls[0] if post_urls else ''
 
-                        # try Amazon image from ASIN
-                        if is_amazon(deal_url) or 'amazon' in deal_url:
+                        if deal_url and is_amazon(deal_url):
                             image_url = get_amazon_image_url(deal_url)
-
-                        # fallback: download from Telegram and upload to Telegraph
-                        if not image_url and hasattr(msg, 'photo') and msg.photo:
+                        elif hasattr(msg, 'photo') and msg.photo:
                             try:
                                 photo_bytes = await client.download_media(msg.photo, bytes)
                                 if photo_bytes:
                                     image_url = await upload_to_telegraph(photo_bytes)
                                     if image_url:
-                                        print(f"    📷 Telegraph: {image_url}")
+                                        print(f"    📷 {image_url}")
                             except Exception as e:
-                                print(f"    📷 Image error: {e}")
+                                print(f"    📷 error: {e}")
 
-                        # post if has any URL
+                        # post if message has any URL
                         urls = extract_urls(text)
                         if urls:
                             new_text += f"\n\n🛒 Deals by @{YOUR_CHANNEL}"
                             ok, resp = post_telegram(bot_api, new_text)
                             if ok:
-                                print(f"  ✅ msg {msg.id} {'(affiliate)' if modified else ''} {'📷' if image_url else ''}")
+                                print(f"  ✅ msg {msg.id} {'(aff)' if modified else ''} {'📷' if image_url else ''}")
                                 deals = save_deal(deals, new_text, deal_url, ch, image_url)
                                 found += 1
                                 total += 1
