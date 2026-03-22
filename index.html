@@ -501,14 +501,14 @@ return;
 }
 grid.innerHTML = deals.map((deal, i) => {
 const store = getStore(deal.text||'', deal.url||'');
-// Image: show if available (Telegraph URL or Amazon CDN)
-// onerror hides broken images silently
+// Image: Telegraph URL (real product photo) or Amazon CDN URL
+// If URL fails to load, try Amazon CDN as fallback before hiding
 const imageHtml = deal.image ? `
 <div class="card-img-wrap">
   <img src="${deal.image}"
        alt="Product"
        loading="lazy"
-       onerror="this.closest('.card-img-wrap').style.display='none'"
+       onerror="this.tryAlt ? this.closest('.card-img-wrap').style.display='none' : (this.tryAlt=true, this.src='${deal.image.includes('telegra.ph') && deal.url ? 'https://m.media-amazon.com/images/I/' + (deal.url.match(/\/dp\/([A-Z0-9]{10})/) || ['',''])[1] + '._SL500_.jpg' : ''}'  || (this.closest('.card-img-wrap').style.display='none'))"
        onmouseover="this.style.transform='scale(1.05)'"
        onmouseout="this.style.transform='scale(1)'"
   />
