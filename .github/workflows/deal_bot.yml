@@ -1,29 +1,28 @@
 name: data-sync
 
 on:
+  schedule:
+    - cron: "*/5 * * * *"
   workflow_dispatch:
 
-concurrency:
-  group: data-sync
-  cancel-in-progress: true
+permissions:
+  contents: write
 
 jobs:
   sync:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
-
     steps:
       - uses: actions/checkout@v4
 
-      - name: Restore state cache
-        uses: actions/cache/restore@v4
+      - uses: actions/cache/restore@v4
         with:
           path: |
             last_seen.json
             seen_web.json
-          key: data-sync-state
+            deals.json
+          key: cache-v2-${{ github.run_id }}
           restore-keys: |
-            data-sync-
+            cache-v2-
 
       - uses: actions/setup-python@v5
         with:
@@ -31,8 +30,7 @@ jobs:
 
       - run: pip install -r requirements.txt
 
-      - name: Run bot
-        run: python main.py
+      - run: python main.py
         env:
           A1: ${{ secrets.TELEGRAM_API_ID }}
           A2: ${{ secrets.TELEGRAM_API_HASH }}
@@ -43,11 +41,22 @@ jobs:
           A7: ${{ secrets.AMAZON_AFFILIATE_ID }}
           A8: ${{ secrets.CUELINKS_API_KEY }}
 
-      - name: Save state cache
-        uses: actions/cache/save@v4
+      - uses: actions/cache/save@v4
         if: always()
         with:
           path: |
             last_seen.json
             seen_web.json
-          key: data-sync-state-${{ github.run_number }}
+            deals.json
+          key: cache-v2-${{ github.run_id }}
+
+      - name: Publish deals
+        if: always()
+        run: |
+          git config user.name "bot"
+          git config user.email "bot@bot"
+          git add deals.json || true
+          git diff --cached --quiet || git commit -m "d [skip ci]"
+          git push origin HEAD || true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
