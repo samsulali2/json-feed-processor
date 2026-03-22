@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=0.6"><title>Crazy Online Deals 🔥 Best Deals in India</title><meta name="description" content="Best online deals, offers and discounts from Amazon, Flipkart and more. Updated every 5 minutes!"><link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Bangers&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet"><style>
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Crazy Online Deals 🔥 Best Deals in India</title><meta name="description" content="Best online deals, offers and discounts from Amazon, Flipkart and more. Updated every 5 minutes!"><link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Bangers&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet"><style>
 :root {
 --red: #FF2D2D;
 --orange: #FF6B00;
@@ -10,24 +10,24 @@
 --muted: #A0AEC0;
 --sidebar: 280px;
 }
-* { margin: 5; padding: 5; box-sizing: border-box; }
+* { margin: 0; padding: 0; box-sizing: border-box; }
 body {
 background: var(--dark);
 color: var(--text);
 font-family: 'Nunito', sans-serif;
-min-height: 80vh;
+min-height: 100vh;
 overflow-x: hidden;
 }
 
 .tg-float {
 position: fixed;
-top: 15px;
-right: 15px;
+top: 20px;
+right: 20px;
 z-index: 999;
 background: #229ED9;
 color: white;
 text-decoration: none;
-font-weight: 700;
+font-weight: 800;
 font-size: 13px;
 padding: 10px 18px;
 border-radius: 30px;
@@ -475,9 +475,12 @@ return Math.floor(diff/86400) + 'd ago';
 }
 function cleanTitle(text) {
 return (text || '')
+.replace(/\[.*?\]\(https?:\/\/[^)]+\)/g, '')
 .replace(/https?:\/\/\S+/g, '')
+.replace(/🔗\s*/g, '')
 .replace(/🛒 Deals by @\S+/g, '')
 .replace(/\*\*/g, '')
+.replace(/\s{2,}/g, ' ')
 .trim().substring(0, 120) || 'Hot Deal!';
 }
 // ── Render ──
@@ -489,18 +492,24 @@ return;
 }
 grid.innerHTML = deals.map((deal, i) => {
 const store = getStore(deal.text||'', deal.url||'');
+// Image: show if available (Telegraph URL or Amazon CDN)
+// onerror hides broken images silently
 const imageHtml = deal.image ? `
-<div style="height:160px; overflow:hidden; border-bottom:1px solid rgba(255,255,255,0.05);"><img src="${deal.image}" alt="Deal Image"
-style="width:100%; height:100%; object-fit:cover; transition:transform 0.3s;"
-onmouseover="this.style.transform='scale(1.05)'"
-onmouseout="this.style.transform='scale(1)'"
-onerror="this.parentElement.style.display='none'"/></div>` : '';
+<div class="card-img-wrap">
+  <img src="${deal.image}"
+       alt="Product"
+       loading="lazy"
+       onerror="this.closest('.card-img-wrap').style.display='none'"
+       onmouseover="this.style.transform='scale(1.05)'"
+       onmouseout="this.style.transform='scale(1)'"
+  />
+</div>` : '';
 return `
 <div class="deal-card" style="animation-delay:${i * 0.04}s">
 ${imageHtml}
 <div class="card-header">
 ${getStoreBadge(store)}
-<span class="time-ago">${timeAgo(deal.timestamp)}</span></div><div class="card-body"><p class="deal-title">${cleanTitle(deal.text)}</p></div><div class="card-footer"><a href="${deal.url}" onclick="if(!deal.url) return false;" target="_blank" rel="nofollow" class="deal-link">
+<span class="time-ago">${timeAgo(deal.timestamp)}</span></div><div class="card-body"><p class="deal-title">${cleanTitle(deal.text)}</p></div><div class="card-footer"><a href="${deal.url||'javascript:void(0)'}" onclick="if(!deal.url){return false;}" target="_blank" rel="nofollow" class="deal-link">
 🛒 Grab This Deal →
 </a></div></div>`;
 }).join('');
