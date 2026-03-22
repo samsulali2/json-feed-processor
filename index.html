@@ -500,7 +500,7 @@ return `
 ${imageHtml}
 <div class="card-header">
 ${getStoreBadge(store)}
-<span class="time-ago">${timeAgo(deal.timestamp)}</span></div><div class="card-body"><p class="deal-title">${cleanTitle(deal.text)}</p></div><div class="card-footer"><a href="${deal.url||'#'}" target="_blank" rel="nofollow" class="deal-link">
+<span class="time-ago">${timeAgo(deal.timestamp)}</span></div><div class="card-body"><p class="deal-title">${cleanTitle(deal.text)}</p></div><div class="card-footer"><a href="${deal.url}" onclick="if(!deal.url) return false;" target="_blank" rel="nofollow" class="deal-link">
 🛒 Grab This Deal →
 </a></div></div>`;
 }).join('');
