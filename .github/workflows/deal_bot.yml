@@ -17,28 +17,17 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
         with:
-          fetch-depth: 1
+          fetch-depth: 0          # full history needed for reliable push
           token: ${{ secrets.GITHUB_TOKEN }}
-
-      # ── Restore cached state files ─────────────────────────────────────────
-      # last_seen.json tracks last processed message ID per channel
-      # WITHOUT this, every run is a "first run" and re-processes old messages
-      - name: Restore state cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            last_seen.json
-          key: state-${{ github.ref }}-${{ hashFiles('last_seen.json') }}
-          restore-keys: |
-            state-${{ github.ref }}-
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+          cache: 'pip'
 
       - name: Install dependencies
-        run: pip install telethon requests beautifulsoup4
+        run: pip install telethon requests
 
       - name: Run bot
         env:
@@ -52,13 +41,15 @@ jobs:
           A8: ${{ secrets.CUELINKS_API_KEY }}
         run: python main.py
 
-      # ── Commit state + deals to repo ───────────────────────────────────────
-      # Committing last_seen.json ensures state persists even if cache misses
-      # Committing deals.json triggers GitHub Pages update for the website
-      - name: Save state and deals to repo
+      # Commit deals.json (website) + last_seen.json (state) back to repo
+      # Pull latest first to avoid push conflicts from concurrent runs
+      - name: Commit and push state
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          git pull --rebase origin main || true
           git add deals.json last_seen.json
-          git diff --staged --quiet && echo "no changes" || git commit -m "sync [skip ci]"
-          git push
+          git diff --staged --quiet && echo "no changes to commit" || (
+            git commit -m "sync: update deals and state [skip ci]"
+            git push origin main
+          )
