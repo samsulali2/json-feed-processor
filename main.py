@@ -164,11 +164,18 @@ def make_cuelinks_affiliate(url):
                          timeout=10)
         if r.status_code == 200:
             data = r.json()
-            aff  = data.get('affiliateUrl') or data.get('url')
+            print(f"    Cuelinks response: {data}")
+            # Try multiple possible field names
+            aff = (data.get('affiliateUrl') or
+                   data.get('affiliate_url') or
+                   data.get('url') or
+                   data.get('shortUrl') or
+                   data.get('short_url'))
             if aff and aff != url:
                 return aff
+            print(f"    Cuelinks returned same URL or empty")
         else:
-            print(f"    Cuelinks HTTP {r.status_code}: {r.text[:80]}")
+            print(f"    Cuelinks HTTP {r.status_code}: {r.text[:120]}")
     except Exception as e:
         print(f"    Cuelinks error: {e}")
     return None
@@ -191,7 +198,8 @@ def get_amazon_image_cdn(url):
 def resolve_to_affiliate(url):
     """
     Given any URL (possibly shortened), return (affiliate_url, image_cdn_url).
-    Returns (None, None) if not monetizable.
+    Returns (None, None) only if truly unusable (noise/social/source site).
+    NEVER drops a valid Amazon/Flipkart URL — always returns at least a shortened link.
     """
     original = url
 
@@ -203,13 +211,16 @@ def resolve_to_affiliate(url):
             url = expanded
         else:
             print(f"    ✗ could not expand {url[:55]}")
-            return None, None
+            # Still try to use it if it points to a known store
+            # (some shorteners return 200 but don't redirect — rare)
 
-    # Step 2: Skip if source site or noise after expansion
-    if is_source_site(url) or is_ignorable(url):
+    # Step 2: Skip noise/social/source sites
+    if is_ignorable(url):
+        return None, None
+    if is_source_site(url):
         return None, None
 
-    # Step 3: Amazon
+    # Step 3: Amazon — inject affiliate tag
     if is_amazon(url):
         aff   = make_amazon_affiliate(url)
         short = shorten(aff)
@@ -217,18 +228,23 @@ def resolve_to_affiliate(url):
         print(f"    ✅ Amazon → {short[:60]}")
         return short, image
 
-    # Step 4: Flipkart/Myntra/etc via Cuelinks
+    # Step 4: Flipkart/Myntra/etc — try Cuelinks, fallback to direct URL
     if is_flipkart_family(url):
         aff = make_cuelinks_affiliate(url)
         if aff:
             short = shorten(aff)
             print(f"    ✅ Cuelinks → {short[:60]}")
             return short, None
-        print(f"    ✗ Cuelinks failed for {url[:55]}")
-        return None, None
+        # Cuelinks failed — use direct URL shortened (no commission but link works)
+        short = shorten(url)
+        print(f"    ⚠️ Cuelinks failed, using direct → {short[:60]}")
+        return short, None
 
-    print(f"    ✗ not monetizable: {url[:55]}")
-    return None, None
+    # Step 5: Unknown store — still shorten and use rather than drop
+    # (better to have a working link with no commission than no link at all)
+    short = shorten(url)
+    print(f"    📎 unknown store, shortened → {short[:60]}")
+    return short, None
 
 # ── Image handling ────────────────────────────────────────────────────────────
 
