@@ -105,8 +105,16 @@ def process_cuelinks_url(url):
     return None
 
 def make_affiliate(url):
+    # Step 1 — expand third-party shorteners to get real URL
     if is_known_shortener(url):
-        return None  # don't touch third-party shorteners
+        print(f"    🔗 Expanding shortener: {url}")
+        url = expand_short_url(url)
+        print(f"    🔗 Expanded to: {url[:80]}")
+        # if expansion failed or returned same URL, skip
+        if is_known_shortener(url):
+            return None
+
+    # Step 2 — process as affiliate
     if is_amazon(url) or re.search(r'amzn\.to|amzn\.in|a\.co/', url):
         return process_amazon_url(url)
     if is_cuelinks_supported(url):
@@ -114,9 +122,10 @@ def make_affiliate(url):
     return None
 
 def is_known_shortener(url):
-    """Known third-party shorteners used by deal channels — don't process these"""
+    """Third-party shorteners that need expanding first"""
     shorteners = ['bitli.store', 'bit.ly', 'tiny.cc', 'ow.ly', 'ddime.in',
-                  'clnk.in', 'shrinkme.io', 'ouo.io', 'adf.ly']
+                  'clnk.in', 'shrinkme.io', 'ouo.io', 'adf.ly', 'shorturl.at',
+                  'cutt.ly', 'rb.gy', 't.ly', 'shorturl.at']
     return any(s in url for s in shorteners)
 
 def extract_urls(text):
