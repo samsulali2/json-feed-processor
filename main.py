@@ -58,9 +58,11 @@ SOURCE_CHANNELS = [c.strip().lstrip('@') for c in _require("A6").split(",") if c
 AMAZON_TAG      = _require("A7")
 CUELINKS_KEY    = os.environ.get("A8", "").strip()  # optional
 
-STATE_FILE = "last_seen.json"   # persisted to repo via workflow git commit
-DEALS_FILE = "deals.json"
-MAX_DEALS  = 200
+STATE_FILE  = "last_seen.json"    # last message ID per channel
+DEALS_FILE  = "deals.json"         # website deals feed
+HASHES_FILE = "seen_hashes.json"   # dedup across runs (persisted to repo)
+MAX_DEALS   = 200
+MAX_HASHES  = 2000                  # keep last 2000 message hashes
 
 # Domains that are short-link services needing expansion
 SHORTENER_DOMAINS = [
@@ -613,8 +615,9 @@ async def run():
     print(f"Sources: {SOURCE_CHANNELS}")
     print(f"State loaded: {list(state.items())[:3]}...")
 
-    # Cross-channel dedup within this run
-    posted_hashes = set()
+    # Cross-run + cross-channel dedup (loaded from file)
+    posted_hashes = set(load_json(HASHES_FILE, []))
+    print(f"Loaded {len(posted_hashes)} seen hashes")
 
     # ── Connect ───────────────────────────────────────────────────────────────
     print("\nConnecting to Telegram...")
@@ -781,9 +784,11 @@ async def run():
             # Save last seen ID for this channel
             state[channel] = new_last_id
 
-    # ── Persist state & deals ─────────────────────────────────────────────────
-    save_json(STATE_FILE, state)   # ← MUST be committed to repo by workflow!
+    # ── Persist state, deals, and seen hashes ───────────────────────────────
+    save_json(STATE_FILE, state)
     save_json(DEALS_FILE, deals)
+    # Save hashes (trim to MAX_HASHES to avoid unbounded growth)
+    save_json(HASHES_FILE, list(posted_hashes)[-MAX_HASHES:])
     print(f"\n{'='*55}")
     print(f"v{VERSION} done: {total} posted | {len(deals)} deals on website")
     print(f"State saved: {list(state.items())[:3]}...")
