@@ -402,30 +402,34 @@ async def one_run():
             found       = 0
             print(f"\n[{channel}] last id: {last_id}")
             try:
-                async for msg in client.iter_messages(channel, min_id=last_id, limit=50):
-                    if msg.id <= last_id:
-                        continue
-                    text = getattr(msg, 'text', '') or getattr(msg, 'caption', '') or ''
-                    if not text:
+                async def read_channel():
+                    nonlocal new_last_id, found, total, deals
+                    async for msg in client.iter_messages(channel, min_id=last_id, limit=50):
+                        if msg.id <= last_id:
+                            continue
+                        text = getattr(msg, 'text', '') or getattr(msg, 'caption', '') or ''
+                        if not text:
+                            if msg.id > new_last_id:
+                                new_last_id = msg.id
+                            continue
+                        new_text, modified = rewrite_message(text)
+                        if modified:
+                            new_text += f"\n\n🛒 Deals by @{YOUR_CHANNEL}"
+                            ok, resp = post_telegram(bot_api, new_text)
+                            if ok:
+                                print(f"  ✅ msg {msg.id}")
+                                urls = re.findall(r'https?://[^\s\)]+', new_text)
+                                deal_url = urls[0] if urls else ''
+                                deals = save_deal(deals, new_text, deal_url, channel)
+                                found += 1
+                                total += 1
+                            else:
+                                print(f"  ❌ {resp[:80]}")
                         if msg.id > new_last_id:
                             new_last_id = msg.id
-                        continue
-                    new_text, modified = rewrite_message(text)
-                    if modified:
-                        new_text += f"\n\n🛒 Deals by @{YOUR_CHANNEL}"
-                        ok, resp = post_telegram(bot_api, new_text)
-                        if ok:
-                            print(f"  ✅ msg {msg.id}")
-                            # extract first url from new_text as deal url
-                            urls = re.findall(r'https?://[^\s\)]+', new_text)
-                            deal_url = urls[0] if urls else ''
-                            deals = save_deal(deals, new_text, deal_url, channel)
-                            found += 1
-                            total += 1
-                        else:
-                            print(f"  ❌ {resp[:80]}")
-                    if msg.id > new_last_id:
-                        new_last_id = msg.id
+                await asyncio.wait_for(read_channel(), timeout=30)
+            except asyncio.TimeoutError:
+                print(f"  ⏱️ Timeout — skipping {channel}")
             except Exception as e:
                 print(f"  ⚠️ {e}")
             state[channel] = new_last_id
