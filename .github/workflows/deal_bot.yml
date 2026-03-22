@@ -29,6 +29,9 @@ jobs:
       - name: Install dependencies
         run: pip install telethon requests
 
+      - name: Backfill missing images in deals.json
+        run: python backfill_images.py || true
+
       - name: Run bot
         env:
           A1: ${{ secrets.TELEGRAM_API_ID }}
