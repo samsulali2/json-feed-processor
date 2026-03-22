@@ -4,6 +4,7 @@ from bs4 import BeautifulSoup
 from telethon import TelegramClient
 from telethon.sessions import StringSession
 
+# ── Config ────────────────────────────────────────────────────────────────────
 API_ID           = int(os.environ["A1"])
 API_HASH         = os.environ["A2"]
 BOT_TOKEN        = os.environ["A3"]
@@ -151,42 +152,8 @@ def get_best_url(urls):
             return url
     return urls[0]
 
-def resolve_deal_url(text):
-    """Extract real Amazon/Flipkart URL from message, expanding dealsmagnet links if needed"""
-    urls = extract_urls(text)
-    # First check for direct Amazon/Flipkart links
-    for url in urls:
-        if is_amazon(url) or re.search(r'amzn\.to|amzn\.in|a\.co/', url):
-            return url
-        if is_cuelinks_supported(url):
-            return url
-    # Try expanding shorteners
-    for url in urls:
-        if is_shortener(url):
-            expanded = expand_short_url(url)
-            if expanded and expanded != url:
-                return expanded
-    # Try following dealsmagnet deal page to get real store URL
-    for url in urls:
-        if 'dealsmagnet.com/deal/' in url:
-            try:
-                r = requests.get(url, headers=get_headers(), timeout=10, allow_redirects=True)
-                # Look for buy button redirect
-                soup = BeautifulSoup(r.text, 'html.parser')
-                buy_btn = soup.select_one('button.buy-button')
-                if buy_btn and buy_btn.get('data-code'):
-                    code = buy_btn['data-code'].split('&')[0]
-                    buy_url = f"https://www.dealsmagnet.com/buy?{code}"
-                    # Follow the redirect
-                    r2 = requests.get(buy_url, headers=get_headers(), timeout=10, allow_redirects=True)
-                    if is_amazon(r2.url) or is_cuelinks_supported(r2.url):
-                        return r2.url
-            except Exception:
-                pass
-    return ''
-
-
-    """Remove source site lines and hashtag lines from message"""
+def clean_message(text):
+    """Remove source site lines from message"""
     lines = text.split('\n')
     clean_lines = []
     for line in lines:
@@ -194,13 +161,10 @@ def resolve_deal_url(text):
         if not s:
             clean_lines.append('')
             continue
-        # Skip lines with source site URLs
         if any(d in s for d in SKIP_DOMAINS):
             continue
-        # Skip "On #Flipkart #Category" lines
         if s.startswith('On #'):
             continue
-        # Skip "Link: https://..." lines
         if s.lower().startswith('link:'):
             continue
         clean_lines.append(line)
@@ -221,8 +185,40 @@ def rewrite_message(text):
             modified = True
     return new_text, modified
 
+def resolve_real_url(text):
+    """Find the real Amazon/Flipkart URL from message, following dealsmagnet if needed"""
+    urls = extract_urls(text)
+    # Direct Amazon/Flipkart links
+    for url in urls:
+        if is_amazon(url) or re.search(r'amzn\.to|amzn\.in|a\.co/', url):
+            return url
+        if is_cuelinks_supported(url):
+            return url
+    # Expand shorteners
+    for url in urls:
+        if is_shortener(url):
+            expanded = expand_short_url(url)
+            if expanded != url:
+                return expanded
+    # Follow dealsmagnet deal page
+    for url in urls:
+        if 'dealsmagnet.com/deal/' in url:
+            try:
+                r = requests.get(url, headers=get_headers(), timeout=10, allow_redirects=True)
+                soup = BeautifulSoup(r.text, 'html.parser')
+                buy_btn = soup.select_one('button.buy-button')
+                if buy_btn and buy_btn.get('data-code'):
+                    code = buy_btn['data-code'].split('&')[0]
+                    buy_url = f"https://www.dealsmagnet.com/buy?{code}"
+                    r2 = requests.get(buy_url, headers=get_headers(), timeout=10, allow_redirects=True)
+                    if is_amazon(r2.url) or is_cuelinks_supported(r2.url):
+                        return r2.url
+            except Exception:
+                pass
+    return ''
 
-# ── Telegraph image upload ────────────────────────────────────────────────────
+
+# ── Telegraph upload ──────────────────────────────────────────────────────────
 
 async def upload_to_telegraph(photo_bytes):
     try:
@@ -476,30 +472,38 @@ async def run():
                     nonlocal new_last_id, found, total, deals
                     async for msg in client.iter_messages(ch, min_id=lid, limit=lim):
                         if msg.id <= lid: continue
-                        text = getattr(msg, 'text', '') or getattr(msg, 'caption', '') or ''
-                        if not text:
+                        raw_text = getattr(msg, 'text', '') or getattr(msg, 'caption', '') or ''
+                        if not raw_text:
                             if msg.id > new_last_id: new_last_id = msg.id
                             continue
 
-                        # Clean then rewrite
-                        real_url = resolve_deal_url(text)  # get real URL before cleaning
-                        text     = clean_message(text)
-                        new_text, modified = rewrite_message(text)
+                        # Step 1: find real buy URL before cleaning
+                        real_url = resolve_real_url(raw_text)
 
-                        # If we found a real URL, make it affiliate and inject into message
-                        if real_url and not modified:
+                        # Step 2: clean source site refs
+                        clean_text = clean_message(raw_text)
+                        if not clean_text.strip():
+                            if msg.id > new_last_id: new_last_id = msg.id
+                            continue
+
+                        # Step 3: rewrite any remaining affiliate links
+                        new_text, modified = rewrite_message(clean_text)
+
+                        # Step 4: attach affiliate link
+                        deal_url = ''
+                        if real_url:
                             aff = make_affiliate(real_url)
                             if aff:
                                 new_text += f"\n\n🔗 {aff}"
-                                modified = True
                                 deal_url = aff
+                                modified = True
                             else:
                                 deal_url = real_url
                         else:
                             all_urls = extract_urls(new_text)
                             deal_url = get_best_url(all_urls)
 
-                        # Get image
+                        # Step 5: get image
                         image_url = ''
                         if deal_url and is_amazon(deal_url):
                             image_url = get_amazon_image_url(deal_url)
@@ -511,7 +515,7 @@ async def run():
                             except Exception:
                                 pass
 
-                        # Post if message has content
+                        # Step 6: post
                         if new_text.strip():
                             out = new_text + f"\n\n🛒 Deals by @{YOUR_CHANNEL}"
                             ok, resp = post_telegram(bot_api, out)
@@ -522,6 +526,7 @@ async def run():
                                 total += 1
                             else:
                                 print(f"  ❌ {resp[:80]}")
+
                         if msg.id > new_last_id: new_last_id = msg.id
 
                 await asyncio.wait_for(read_ch(), timeout=25)
