@@ -61,11 +61,35 @@
 
   /* ── Header ── */
   header {
-    background: linear-gradient(135deg, #FF2D2D 0%, #FF6B00 50%, #FFD600 100%);
+    background: #0F0C29;
     padding: 0;
-    box-shadow: 0 4px 20px rgba(255,45,45,0.4);
+    box-shadow: 0 4px 30px rgba(255,107,0,0.3);
     position: relative;
     z-index: 10;
+  }
+
+  .header-inner {
+    max-width: 1400px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .logo-banner {
+    width: 100%;
+    height: auto;
+    display: block;
+  }
+
+  .header-nav {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding: 8px 20px;
+    gap: 8px;
+    background: rgba(0,0,0,0.3);
+    border-top: 1px solid rgba(255,107,0,0.2);
   }
 
   .header-inner {
@@ -78,25 +102,28 @@
   }
 
   .logo {
-    font-family: 'Bangers', cursive;
-    font-size: 2rem;
-    color: white;
-    text-shadow: 3px 3px 0px rgba(0,0,0,0.3);
-    letter-spacing: 2px;
+    display: flex;
+    align-items: center;
     text-decoration: none;
-    animation: logo-shine 3s ease-in-out infinite;
   }
 
-  @keyframes logo-shine {
-    0%, 100% { text-shadow: 3px 3px 0px rgba(0,0,0,0.3); }
-    50% { text-shadow: 3px 3px 20px rgba(255,255,255,0.5); }
+  .logo img {
+    height: 52px;
+    width: auto;
+    filter: drop-shadow(0 0 10px rgba(255,107,0,0.5));
+    transition: filter 0.3s;
+    animation: logo-glow 3s ease-in-out infinite;
   }
 
-  .logo span { color: var(--dark); }
+  @keyframes logo-glow {
+    0%, 100% { filter: drop-shadow(0 0 8px rgba(255,107,0,0.4)); }
+    50% { filter: drop-shadow(0 0 20px rgba(255,214,0,0.8)); }
+  }
 
   .live-badge {
-    background: white;
+    background: rgba(255,45,45,0.15);
     color: var(--red);
+    border: 1px solid rgba(255,45,45,0.4);
     font-size: 11px;
     font-weight: 800;
     padding: 4px 10px;
@@ -123,17 +150,18 @@
   nav { display: flex; gap: 6px; margin-left: auto; padding-right: 120px; }
 
   nav a {
-    color: white;
+    color: var(--yellow);
     text-decoration: none;
     font-weight: 700;
     font-size: 13px;
     padding: 6px 14px;
     border-radius: 20px;
-    background: rgba(0,0,0,0.2);
+    background: rgba(255,214,0,0.1);
+    border: 1px solid rgba(255,214,0,0.2);
     transition: background 0.2s;
   }
 
-  nav a:hover { background: rgba(0,0,0,0.4); }
+  nav a:hover { background: rgba(255,107,0,0.3); border-color: var(--orange); color: white; }
 
   /* ── Hero ── */
   .hero {
@@ -404,13 +432,14 @@
     background: linear-gradient(135deg, #FF2D2D, #FF6B00);
     color: white;
     text-decoration: none;
-    font-weight: 800;
-    font-size: 13px;
-    padding: 9px;
-    border-radius: 10px;
+    font-weight: 700;
+    font-size: 12px;
+    padding: 7px 10px;
+    border-radius: 8px;
     transition: opacity 0.2s, transform 0.2s;
     position: relative;
     overflow: hidden;
+    letter-spacing: 0.3px;
   }
 
   .deal-link::after {
@@ -484,12 +513,14 @@
 
 <header>
   <div class="header-inner">
-    <a href="#" class="logo">Crazy<span>Online</span>Deals 🔥</a>
-    <div class="live-badge"><div class="live-dot"></div> Live</div>
-    <nav>
-      <a href="#deals">Deals</a>
-      <a href="#about">About</a>
-    </nav>
+    <img src="logo-animated.svg" alt="Crazy Online Deals" class="logo-banner"/>
+    <div class="header-nav">
+      <div class="live-badge"><div class="live-dot"></div> Live Deals</div>
+      <nav>
+        <a href="#deals">Deals</a>
+        <a href="#about">About</a>
+      </nav>
+    </div>
   </div>
 </header>
 
