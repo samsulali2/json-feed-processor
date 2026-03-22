@@ -703,13 +703,14 @@ async def run():
                         print("    ✗ checklist FAILED — skipping")
                         continue
 
-                    # 5. Groq AI check (optional)
+                    # 5. Groq AI check — ADVISORY ONLY, never blocks posting
+                    # (Too many false positives when used as a gate)
                     if GROQ_API_KEY:
                         ai_ok, ai_reason = groq_quality_check(clean, affiliate_url)
                         if not ai_ok:
-                            print(f"    🤖 Groq REJECTED: {ai_reason}")
-                            continue
-                        print(f"    🤖 Groq OK: {ai_reason}")
+                            print(f"    🤖 Groq warning (not blocking): {ai_reason}")
+                        else:
+                            print(f"    🤖 Groq OK: {ai_reason}")
 
                     # Append branding
                     final_text = clean + f"\n\n🛒 Deals by @{YOUR_CHANNEL}"
