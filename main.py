@@ -19,12 +19,10 @@ DEALS_FILE  = "deals.json"
 MAX_DEALS   = 200
 MAX_WEB_RUN = 5
 
-# Rotate user agents to avoid detection
 USER_AGENTS = [
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/119.0.0.0 Safari/537.36',
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/121.0',
-    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
 ]
 
 def get_headers():
@@ -32,9 +30,7 @@ def get_headers():
         'User-Agent': random.choice(USER_AGENTS),
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
         'Accept-Language': 'en-IN,en;q=0.9',
-        'Accept-Encoding': 'gzip, deflate, br',
         'Connection': 'keep-alive',
-        'Upgrade-Insecure-Requests': '1',
     }
 
 CUELINKS_DOMAINS = {
@@ -45,15 +41,14 @@ CUELINKS_DOMAINS = {
 
 SHORTENERS = [
     'bitli.store', 'bit.ly', 'tiny.cc', 'ow.ly', 'ddime.in',
-    'clnk.in', 'shrinkme.io', 'ouo.io', 'adf.ly', 'shorturl.at',
-    'cutt.ly', 'rb.gy', 't.ly',
+    'clnk.in', 'shrinkme.io', 'ouo.io', 'adf.ly',
+    'shorturl.at', 'cutt.ly', 'rb.gy', 't.ly',
 ]
 
-# Sites we scrape — skip their URLs when rewriting
 SKIP_DOMAINS = [
     'dealsmagnet.com', 'desidime.com', 'freekaamaal.com', 'lootdunia.com',
-    'dealsbazaar.in', 'telegram.me', 't.me', 'hcti.io', 'play.google.com',
-    'instagram.com', 'twitter.com', 'facebook.com', 'youtube.com',
+    'dealsbazaar.in', 't.me', 'telegram.me', 'hcti.io',
+    'play.google.com', 'instagram.com', 'twitter.com', 'facebook.com',
 ]
 
 
@@ -123,11 +118,9 @@ def process_cuelinks_url(url):
 
 def make_affiliate(url):
     if is_shortener(url):
-        print(f"    🔗 Expanding: {url}")
         expanded = expand_short_url(url)
         if expanded and expanded != url and not is_shortener(expanded):
             url = expanded
-            print(f"    🔗 → {url[:80]}")
         else:
             return None
     if is_amazon(url) or re.search(r'amzn\.to|amzn\.in|a\.co/', url):
@@ -137,7 +130,6 @@ def make_affiliate(url):
     return None
 
 def get_amazon_image_url(url):
-    """Get Amazon product image from ASIN — free, official, no auth needed"""
     asin = re.search(r'/(?:dp|gp/product)/([A-Z0-9]{10})', url)
     if asin:
         return f"https://m.media-amazon.com/images/I/{asin.group(1)}._SL500_.jpg"
@@ -160,30 +152,29 @@ def get_best_url(urls):
     return urls[0]
 
 def clean_message(text):
-    """Remove source site URLs and hashtag lines from message"""
+    """Remove source site lines and hashtag lines from message"""
     lines = text.split('\n')
     clean_lines = []
     for line in lines:
-        stripped = line.strip()
-        # Skip empty lines (will re-add spacing later)
-        if not stripped:
+        s = line.strip()
+        if not s:
             clean_lines.append('')
             continue
-        # Skip lines that contain only source site URLs
-        if any(d in stripped for d in SKIP_DOMAINS):
+        # Skip lines with source site URLs
+        if any(d in s for d in SKIP_DOMAINS):
             continue
-        # Skip lines that are ONLY hashtags like "On #Flipkart #Category"
-        if stripped.startswith('On #') or re.match(r'^#+\w+(\s+#+\w+)*$', stripped):
+        # Skip "On #Flipkart #Category" lines
+        if s.startswith('On #'):
             continue
-        # Skip lines starting with "Link:" 
-        if stripped.lower().startswith('link:'):
+        # Skip "Link: https://..." lines
+        if s.lower().startswith('link:'):
             continue
         clean_lines.append(line)
-    text = '\n'.join(clean_lines)
-    text = re.sub(r'\n{3,}', '\n\n', text).strip()
-    return text
+    result = '\n'.join(clean_lines)
+    return re.sub(r'\n{3,}', '\n\n', result).strip()
 
-
+def rewrite_message(text):
+    """Replace Amazon/Flipkart links with affiliate versions"""
     urls = extract_urls(text)
     modified = False
     new_text = text
@@ -215,15 +206,15 @@ async def upload_to_telegraph(photo_bytes):
 # ── Deal class ────────────────────────────────────────────────────────────────
 
 class Deal:
-    def __init__(self, title, url, source, image_url='', price='', original_price='', discount=''):
-        self.title          = title.strip()[:300]
-        self.url            = url
-        self.source         = source
-        self.image_url      = image_url
-        self.price          = price
-        self.original_price = original_price
-        self.discount       = discount
-        self.uid            = hashlib.md5(url.encode()).hexdigest()[:12]
+    def __init__(self, title, url, source, image_url='', price='', orig_price='', discount=''):
+        self.title     = title.strip()[:300]
+        self.url       = url
+        self.source    = source
+        self.image_url = image_url
+        self.price     = price
+        self.orig      = orig_price
+        self.discount  = discount
+        self.uid       = hashlib.md5(url.encode()).hexdigest()[:12]
 
     def to_telegram(self, channel, short_url):
         msg = f"🔥 {self.title}\n"
@@ -231,27 +222,22 @@ class Deal:
             msg += f"🏷️ {self.discount}% OFF"
         if self.price:
             msg += f" | ✅ ₹{self.price}"
-        if self.original_price:
-            msg += f" ❌ ₹{self.original_price}"
+        if self.orig:
+            msg += f" ❌ ₹{self.orig}"
         msg += f"\n\n🔗 {short_url}\n\n🛒 Deals by @{channel}"
         return msg
 
 
 # ── Scrapers ──────────────────────────────────────────────────────────────────
-# NOTE: We only read publicly visible deal information (titles, prices).
-# We do NOT use site images — we use Amazon's own CDN for product images.
-# We add random delays between requests to be respectful.
 
-def safe_get(url, delay_range=(2, 5)):
-    """Fetch URL with random delay and rotating user agent"""
-    time.sleep(random.uniform(*delay_range))
+def safe_fetch(url):
+    time.sleep(random.uniform(1, 3))
     return requests.get(url, headers=get_headers(), timeout=15)
 
 def scrape_desidime():
-    """Read public deal titles and links from desidime.com/deals"""
     deals = []
     try:
-        r = safe_get('https://www.desidime.com/deals')
+        r = safe_fetch('https://www.desidime.com/deals')
         soup = BeautifulSoup(r.text, 'html.parser')
         items = soup.select('li.deal-item') or soup.select('div.deal-item') or soup.select('article')
         for item in items[:40]:
@@ -272,10 +258,9 @@ def scrape_desidime():
     return deals
 
 def scrape_freekaamaal():
-    """Read public deal titles and links from freekaamaal.com"""
     deals = []
     try:
-        r = safe_get('https://www.freekaamaal.com/')
+        r = safe_fetch('https://www.freekaamaal.com/')
         soup = BeautifulSoup(r.text, 'html.parser')
         items = soup.select('article') or soup.select('.deal-box')
         for item in items[:40]:
@@ -294,63 +279,45 @@ def scrape_freekaamaal():
     return deals
 
 def scrape_dealsmagnet():
-    """
-    Read public deal info from dealsmagnet.com/new
-    - Only uses publicly visible titles, prices (factual data — not copyrightable)
-    - Does NOT use their images — uses Amazon CDN instead
-    - Does NOT use their redirect URLs — extracts real store links
-    """
     deals = []
     try:
-        r = safe_get('https://www.dealsmagnet.com/new')
+        r = safe_fetch('https://www.dealsmagnet.com/new')
         soup = BeautifulSoup(r.text, 'html.parser')
         items = soup.select('div.col-lg-4, div.col-md-6')
         print(f"  dealsmagnet: {len(items)} containers found")
-
         for item in items[:60]:
             try:
                 title_el = item.select_one('.details-block .title a') or item.select_one('.title a')
                 if not title_el: continue
                 title = title_el.get_text(strip=True)
                 if not title or len(title) < 5: continue
-
-                # Price info (factual data)
                 price_el    = item.select_one('.DiscountedPrice')
                 orig_el     = item.select_one('.OriginalPrice')
                 discount_el = item.select_one('.Discount')
                 price    = price_el.get_text(strip=True).replace('₹','').replace(',','').strip() if price_el else ''
                 orig     = orig_el.get_text(strip=True).replace('₹','').replace(',','').strip() if orig_el else ''
                 discount = re.sub(r'[^\d]', '', discount_el.get_text()) if discount_el else ''
-
-                # Get deal page link — we'll expand to real store URL
-                link_el = item.select_one('a[href*="/deal/"]')
-                deal_page = link_el['href'] if link_el else ''
-                if deal_page and not deal_page.startswith('http'):
-                    deal_page = 'https://www.dealsmagnet.com' + deal_page
-
-                # Look for direct Amazon/Flipkart links in the card
                 store_link = (item.select_one('a[href*="amazon.in"]') or
                              item.select_one('a[href*="flipkart.com"]') or
                              item.select_one('a[href*="myntra.com"]'))
-                buy_url = store_link['href'] if store_link else deal_page
+                link_el = item.select_one('a[href*="/deal/"]')
+                buy_url = (store_link['href'] if store_link else
+                          (link_el['href'] if link_el else ''))
+                if buy_url and not buy_url.startswith('http'):
+                    buy_url = 'https://www.dealsmagnet.com' + buy_url
                 if not buy_url: continue
-
-                # No dealsmagnet images — website will use Amazon CDN
                 deals.append(Deal(title, buy_url, 'dealsmagnet', '', price, orig, discount))
-
             except Exception:
                 continue
-
     except Exception as e:
         print(f"  dealsmagnet error: {e}")
     print(f"  dealsmagnet: {len(deals)} found")
     return deals
 
 def scrape_lootdunia():
-    """Read public deal titles and links from lootdunia.com"""
     deals = []
     try:
-        r = safe_get('https://lootdunia.com/')
+        r = safe_fetch('https://lootdunia.com/')
         soup = BeautifulSoup(r.text, 'html.parser')
         items = soup.select('article') or soup.select('.post')
         for item in items[:40]:
@@ -413,8 +380,8 @@ def save_deal(deals, text, url, source, image_url=''):
 
 def post_telegram(bot_api, text):
     r = requests.post(bot_api, json={
-        'chat_id': f'@{YOUR_CHANNEL}',
-        'text': text,
+        'chat_id':                  f'@{YOUR_CHANNEL}',
+        'text':                     text,
         'disable_web_page_preview': True
     }, timeout=15)
     return r.status_code == 200, r.text
@@ -453,7 +420,6 @@ async def run():
             if ok:
                 print(f"  ✅ {deal.title[:60]}")
                 seen.add(deal.uid)
-                # Always use Amazon CDN for images — never third-party site images
                 image_url = get_amazon_image_url(aff) if is_amazon(aff) else ''
                 deals = save_deal(deals, msg, aff, site_name, image_url)
                 posted += 1
@@ -481,19 +447,14 @@ async def run():
                             if msg.id > new_last_id: new_last_id = msg.id
                             continue
 
-                        # Clean source site references first
-                        text = clean_message(text)
-                        if not text.strip():
-                            if msg.id > new_last_id: new_last_id = msg.id
-                            continue
-
+                        # Clean then rewrite
+                        text     = clean_message(text)
                         new_text, modified = rewrite_message(text)
 
-                        # Image: Amazon CDN (instant) or Telegraph upload
+                        # Get image
                         image_url = ''
                         all_urls  = extract_urls(new_text)
                         deal_url  = get_best_url(all_urls)
-
                         if deal_url and is_amazon(deal_url):
                             image_url = get_amazon_image_url(deal_url)
                         elif hasattr(msg, 'photo') and msg.photo:
@@ -501,18 +462,16 @@ async def run():
                                 photo_bytes = await client.download_media(msg.photo, bytes)
                                 if photo_bytes:
                                     image_url = await upload_to_telegraph(photo_bytes)
-                                    if image_url:
-                                        print(f"    📷 {image_url}")
-                            except Exception as e:
-                                print(f"    📷 error: {e}")
+                            except Exception:
+                                pass
 
-                        urls = extract_urls(new_text)
-                        if urls or new_text.strip():
-                            new_text += f"\n\n🛒 Deals by @{YOUR_CHANNEL}"
-                            ok, resp = post_telegram(bot_api, new_text)
+                        # Post if message has content
+                        if new_text.strip():
+                            out = new_text + f"\n\n🛒 Deals by @{YOUR_CHANNEL}"
+                            ok, resp = post_telegram(bot_api, out)
                             if ok:
-                                print(f"  ✅ msg {msg.id} {'(aff)' if modified else ''} {'📷' if image_url else ''}")
-                                deals = save_deal(deals, new_text, deal_url, ch, image_url)
+                                print(f"  ✅ msg {msg.id} {'(aff)' if modified else ''}")
+                                deals = save_deal(deals, out, deal_url, ch, image_url)
                                 found += 1
                                 total += 1
                             else:
