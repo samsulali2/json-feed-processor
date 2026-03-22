@@ -135,11 +135,39 @@ def get_amazon_image_url(url):
 def extract_urls(text):
     return re.findall(r'https?://[^\s\)\]>\"\']+', text or '')
 
+def get_best_url(urls):
+    """Pick the best deal URL — prefer Amazon/Flipkart over referral sites"""
+    if not urls:
+        return ''
+    # Priority 1: Amazon direct links
+    for url in urls:
+        if is_amazon(url) or re.search(r'amzn\.to|amzn\.in|a\.co/', url):
+            return url
+    # Priority 2: Flipkart/Myntra/other supported stores
+    for url in urls:
+        if is_cuelinks_supported(url):
+            return url
+    # Priority 3: Known shorteners (expand later)
+    for url in urls:
+        if is_shortener(url):
+            return url
+    # Last resort: first URL
+    return urls[0]
+
+SKIP_DOMAINS = [
+    'dealsmagnet.com', 'desidime.com', 'freekaamaal.com', 'lootdunia.com',
+    'dealsbazaar.in', 'telegram.me', 't.me', 'hcti.io', 'play.google.com',
+    'instagram.com', 'twitter.com', 'facebook.com', 'youtube.com',
+]
+
 def rewrite_message(text):
     urls = extract_urls(text)
     modified = False
     new_text = text
     for url in urls:
+        # skip referral/tracking/social URLs
+        if any(d in url for d in SKIP_DOMAINS):
+            continue
         aff = make_affiliate(url)
         if aff and aff != url:
             new_text = new_text.replace(url, aff)
@@ -373,8 +401,8 @@ async def run():
                         # get image — Amazon image from ASIN (instant)
                         # or download from Telegram and upload to Telegraph
                         image_url = ''
-                        post_urls = extract_urls(new_text)
-                        deal_url  = post_urls[0] if post_urls else ''
+                        all_urls  = extract_urls(new_text)
+                        deal_url  = get_best_url(all_urls)
 
                         if deal_url and is_amazon(deal_url):
                             image_url = get_amazon_image_url(deal_url)
