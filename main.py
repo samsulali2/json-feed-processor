@@ -860,6 +860,18 @@ async def run():
             print(f"  {channel}  last_id={last_id}  limit={limit}")
 
             try:
+                # Diagnostic: check the actual latest message ID in this channel
+                latest_msgs = await client.get_messages(channel, limit=1)
+                if latest_msgs:
+                    latest_id = latest_msgs[0].id
+                    new_available = max(0, latest_id - last_id)
+                    print(f"  latest_id={latest_id}  new_available≈{new_available}")
+                    if new_available == 0:
+                        print(f"  ⏭ no new messages — skipping")
+                        continue
+                else:
+                    print(f"  ⚠️ could not fetch latest message")
+
                 async for msg in client.iter_messages(
                         channel, min_id=last_id, limit=limit):
 
