@@ -1,9 +1,9 @@
 name: data-sync
 
 on:
-  schedule:
-    - cron: "*/5 * * * *"
   workflow_dispatch:
+  schedule:
+    - cron: '*/5 * * * *'
 
 permissions:
   contents: write
@@ -11,52 +11,54 @@ permissions:
 jobs:
   sync:
     runs-on: ubuntu-latest
+    timeout-minutes: 8
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          token: ${{ secrets.GITHUB_TOKEN }}
 
-      - uses: actions/cache/restore@v4
+      # ── Restore cached state files ─────────────────────────────────────────
+      # last_seen.json tracks last processed message ID per channel
+      # WITHOUT this, every run is a "first run" and re-processes old messages
+      - name: Restore state cache
+        uses: actions/cache@v4
         with:
           path: |
             last_seen.json
-            seen_web.json
-            deals.json
-          key: cache-v2-${{ github.run_id }}
+          key: state-${{ github.ref }}-${{ hashFiles('last_seen.json') }}
           restore-keys: |
-            cache-v2-
+            state-${{ github.ref }}-
 
-      - uses: actions/setup-python@v5
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: '3.11'
 
-      - run: pip install -r requirements.txt
+      - name: Install dependencies
+        run: pip install telethon requests beautifulsoup4
 
-      - run: python main.py
+      - name: Run bot
         env:
-          A1: ${{ secrets.TELEGRAM_API_ID }}
-          A2: ${{ secrets.TELEGRAM_API_HASH }}
-          A3: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          A4: ${{ secrets.TELEGRAM_SESSION_STRING }}
-          A5: ${{ secrets.YOUR_CHANNEL_USERNAME }}
-          A6: ${{ secrets.SOURCE_CHANNELS }}
-          A7: ${{ secrets.AMAZON_AFFILIATE_ID }}
-          A8: ${{ secrets.CUELINKS_API_KEY }}
+          A1: ${{ secrets.A1 }}
+          A2: ${{ secrets.A2 }}
+          A3: ${{ secrets.A3 }}
+          A4: ${{ secrets.A4 }}
+          A5: ${{ secrets.A5 }}
+          A6: ${{ secrets.A6 }}
+          A7: ${{ secrets.A7 }}
+          A8: ${{ secrets.A8 }}
+        run: python main.py
 
-      - uses: actions/cache/save@v4
-        if: always()
-        with:
-          path: |
-            last_seen.json
-            seen_web.json
-            deals.json
-          key: cache-v2-${{ github.run_id }}
-
-      - name: Publish deals
-        if: always()
+      # ── Commit state + deals to repo ───────────────────────────────────────
+      # Committing last_seen.json ensures state persists even if cache misses
+      # Committing deals.json triggers GitHub Pages update for the website
+      - name: Save state and deals to repo
         run: |
-          git config user.name "bot"
-          git config user.email "bot@bot"
-          git add deals.json || true
-          git diff --cached --quiet || git commit -m "d [skip ci]"
-          git push origin HEAD || true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add deals.json last_seen.json
+          git diff --staged --quiet && echo "no changes" || git commit -m "sync [skip ci]"
+          git push
