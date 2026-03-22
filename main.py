@@ -30,10 +30,17 @@ STATE_FILE = "last_seen.json"
 DEALS_FILE = "deals.json"
 MAX_DEALS  = 200
 
-# Domains that indicate the URL is a source site reference, not a product link
+# Domains that are deal aggregator sites (skip their URLs as product links)
 SOURCE_SITE_DOMAINS = [
-    'desidime.com', 'ddime.in', 'dealsmagnet.com', 'freekaamaal.com',
+    'desidime.com', 'dealsmagnet.com', 'freekaamaal.com',
     'lootdunia.com', 'dealsbazaar.in', 'hcti.io',
+]
+
+# Short link domains used by deal channels — must be EXPANDED to get real URL
+SHORTENER_DOMAINS = [
+    'ddime.in', 'amzn.to', 'amzn.in', 'a.co/',
+    'bitli.store', 'bit.ly', 'clnk.in', 'cutt.ly',
+    'rb.gy', 't.ly', 'tiny.cc', 'ow.ly', 'shorturl.at',
 ]
 
 # Domains we can convert to Cuelinks affiliate
@@ -77,10 +84,7 @@ def is_source_site(url):
 
 def needs_expanding(url):
     """Short URLs that need to be expanded"""
-    short_domains = ['amzn.to', 'amzn.in', 'a.co/', 'bitli.store', 'bit.ly',
-                     'ddime.in', 'clnk.in', 'cutt.ly', 'rb.gy', 't.ly',
-                     'tiny.cc', 'ow.ly', 'shorturl.at']
-    return any(d in url for d in short_domains)
+    return any(d in url for d in SHORTENER_DOMAINS)
 
 def make_amazon_affiliate(url):
     """Convert any Amazon URL to clean affiliate URL"""
@@ -210,11 +214,20 @@ def process_message(raw_text):
         if not stripped:
             clean_lines.append('')
             continue
+        # Skip noise lines
         if stripped.startswith('On #'):
+            continue
+        if re.match(r'^#\w', stripped):
             continue
         if stripped.lower().startswith('read more'):
             continue
         if stripped.lower().startswith('buy now'):
+            continue
+        # Skip "Link:" line if it has no URL remaining (URL was replaced/removed)
+        if re.match(r'^link:\s*$', stripped, re.IGNORECASE):
+            continue
+        # Skip lines that only had a URL which got removed (now just noise label)
+        if stripped.endswith(':') and len(stripped) < 20:
             continue
         clean_lines.append(line)
 
