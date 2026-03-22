@@ -151,7 +151,41 @@ def get_best_url(urls):
             return url
     return urls[0]
 
-def clean_message(text):
+def resolve_deal_url(text):
+    """Extract real Amazon/Flipkart URL from message, expanding dealsmagnet links if needed"""
+    urls = extract_urls(text)
+    # First check for direct Amazon/Flipkart links
+    for url in urls:
+        if is_amazon(url) or re.search(r'amzn\.to|amzn\.in|a\.co/', url):
+            return url
+        if is_cuelinks_supported(url):
+            return url
+    # Try expanding shorteners
+    for url in urls:
+        if is_shortener(url):
+            expanded = expand_short_url(url)
+            if expanded and expanded != url:
+                return expanded
+    # Try following dealsmagnet deal page to get real store URL
+    for url in urls:
+        if 'dealsmagnet.com/deal/' in url:
+            try:
+                r = requests.get(url, headers=get_headers(), timeout=10, allow_redirects=True)
+                # Look for buy button redirect
+                soup = BeautifulSoup(r.text, 'html.parser')
+                buy_btn = soup.select_one('button.buy-button')
+                if buy_btn and buy_btn.get('data-code'):
+                    code = buy_btn['data-code'].split('&')[0]
+                    buy_url = f"https://www.dealsmagnet.com/buy?{code}"
+                    # Follow the redirect
+                    r2 = requests.get(buy_url, headers=get_headers(), timeout=10, allow_redirects=True)
+                    if is_amazon(r2.url) or is_cuelinks_supported(r2.url):
+                        return r2.url
+            except Exception:
+                pass
+    return ''
+
+
     """Remove source site lines and hashtag lines from message"""
     lines = text.split('\n')
     clean_lines = []
@@ -448,13 +482,25 @@ async def run():
                             continue
 
                         # Clean then rewrite
+                        real_url = resolve_deal_url(text)  # get real URL before cleaning
                         text     = clean_message(text)
                         new_text, modified = rewrite_message(text)
 
+                        # If we found a real URL, make it affiliate and inject into message
+                        if real_url and not modified:
+                            aff = make_affiliate(real_url)
+                            if aff:
+                                new_text += f"\n\n🔗 {aff}"
+                                modified = True
+                                deal_url = aff
+                            else:
+                                deal_url = real_url
+                        else:
+                            all_urls = extract_urls(new_text)
+                            deal_url = get_best_url(all_urls)
+
                         # Get image
                         image_url = ''
-                        all_urls  = extract_urls(new_text)
-                        deal_url  = get_best_url(all_urls)
                         if deal_url and is_amazon(deal_url):
                             image_url = get_amazon_image_url(deal_url)
                         elif hasattr(msg, 'photo') and msg.photo:
