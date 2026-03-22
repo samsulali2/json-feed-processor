@@ -42,14 +42,14 @@ jobs:
 
       - name: Run bot
         env:
-          A1: ${{ secrets.A1 }}
-          A2: ${{ secrets.A2 }}
-          A3: ${{ secrets.A3 }}
-          A4: ${{ secrets.A4 }}
-          A5: ${{ secrets.A5 }}
-          A6: ${{ secrets.A6 }}
-          A7: ${{ secrets.A7 }}
-          A8: ${{ secrets.A8 }}
+          A1: ${{ secrets.TELEGRAM_API_ID }}
+          A2: ${{ secrets.TELEGRAM_API_HASH }}
+          A3: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          A4: ${{ secrets.TELEGRAM_SESSION_STRING }}
+          A5: ${{ secrets.YOUR_CHANNEL_USERNAME }}
+          A6: ${{ secrets.SOURCE_CHANNELS }}
+          A7: ${{ secrets.AMAZON_AFFILIATE_ID }}
+          A8: ${{ secrets.CUELINKS_API_KEY }}
         run: python main.py
 
       # ── Commit state + deals to repo ───────────────────────────────────────
