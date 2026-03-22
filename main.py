@@ -1,22 +1,8 @@
-"""
-Telegram Affiliate Deal Bot - Simple & Reliable Version
-Logic:
-  1. Read each Telegram source channel
-  2. For every new message that has a URL:
-     - Expand any short URLs (ddime.in, bit.ly etc) to get real URL
-     - If Amazon → inject affiliate tag → shorten with TinyURL
-     - If Flipkart/Myntra etc → Cuelinks → shorten with TinyURL
-     - Remove source site reference lines from message
-     - Post clean message with affiliate link to our channel
-     - Save to deals.json for website
-"""
-
 import os, re, json, asyncio, requests, hashlib, io, random
 from datetime import datetime, timezone
 from telethon import TelegramClient
 from telethon.sessions import StringSession
 
-# ── Config ────────────────────────────────────────────────────────────────────
 API_ID           = int(os.environ["A1"])
 API_HASH         = os.environ["A2"]
 BOT_TOKEN        = os.environ["A3"]
@@ -30,20 +16,17 @@ STATE_FILE = "last_seen.json"
 DEALS_FILE = "deals.json"
 MAX_DEALS  = 200
 
-# Domains that are deal aggregator sites (skip their URLs as product links)
 SOURCE_SITE_DOMAINS = [
     'desidime.com', 'dealsmagnet.com', 'freekaamaal.com',
     'lootdunia.com', 'dealsbazaar.in', 'hcti.io',
 ]
 
-# Short link domains used by deal channels — must be EXPANDED to get real URL
 SHORTENER_DOMAINS = [
     'ddime.in', 'amzn.to', 'amzn.in', 'a.co/',
     'bitli.store', 'bit.ly', 'clnk.in', 'cutt.ly',
     'rb.gy', 't.ly', 'tiny.cc', 'ow.ly', 'shorturl.at',
 ]
 
-# Domains we can convert to Cuelinks affiliate
 CUELINKS_DOMAINS = [
     'flipkart.com', 'myntra.com', 'ajio.com', 'nykaa.com',
     'tatacliq.com', 'shopsy.in', 'meesho.com', 'jiomart.com',
@@ -55,20 +38,18 @@ HEADERS = {
     'Accept-Language': 'en-IN,en;q=0.9',
 }
 
-
 # ── URL utilities ─────────────────────────────────────────────────────────────
 
 def extract_urls(text):
     return re.findall(r'https?://[^\s\)\]>\"\']+', text or '')
 
-def expand_url(url, timeout=8):
-    """Follow redirects to get the real URL"""
+def expand_url(url):
     try:
-        r = requests.head(url, allow_redirects=True, timeout=timeout, headers=HEADERS)
+        r = requests.head(url, allow_redirects=True, timeout=8, headers=HEADERS)
         return r.url
     except Exception:
         try:
-            r = requests.get(url, allow_redirects=True, timeout=timeout, headers=HEADERS, stream=True)
+            r = requests.get(url, allow_redirects=True, timeout=8, headers=HEADERS, stream=True)
             return r.url
         except Exception:
             return url
@@ -83,26 +64,19 @@ def is_source_site(url):
     return any(d in url for d in SOURCE_SITE_DOMAINS)
 
 def needs_expanding(url):
-    """Short URLs that need to be expanded"""
     return any(d in url for d in SHORTENER_DOMAINS)
 
 def make_amazon_affiliate(url):
-    """Convert any Amazon URL to clean affiliate URL"""
-    # Extract ASIN
     asin = re.search(r'/(?:dp|gp/product)/([A-Z0-9]{10})', url)
     if asin:
-        clean = f"https://www.amazon.in/dp/{asin.group(1)}?tag={AMAZON_TAG}"
-    else:
-        # Remove existing tag and add ours
-        url = re.sub(r'[?&]tag=[^&]*', '', url)
-        url = re.sub(r'[?&]ascsubtag=[^&]*', '', url)
-        url = re.sub(r'/ref=[^/?&]*', '', url)
-        sep = '&' if '?' in url else '?'
-        clean = f"{url}{sep}tag={AMAZON_TAG}"
-    return clean
+        return f"https://www.amazon.in/dp/{asin.group(1)}?tag={AMAZON_TAG}"
+    url = re.sub(r'[?&]tag=[^&]*', '', url)
+    url = re.sub(r'[?&]ascsubtag=[^&]*', '', url)
+    url = re.sub(r'/ref=[^/?&]*', '', url)
+    sep = '&' if '?' in url else '?'
+    return f"{url}{sep}tag={AMAZON_TAG}"
 
 def make_cuelinks_affiliate(url):
-    """Convert Flipkart/Myntra etc URL to Cuelinks affiliate URL"""
     if not CUELINKS_KEY:
         return None
     try:
@@ -121,7 +95,6 @@ def make_cuelinks_affiliate(url):
     return None
 
 def shorten(url):
-    """Shorten URL with TinyURL"""
     try:
         resp = requests.get(f'https://tinyurl.com/api-create.php?url={url}', timeout=10)
         if resp.status_code == 200 and resp.text.startswith('http'):
@@ -131,52 +104,32 @@ def shorten(url):
     return url
 
 def get_amazon_image(url):
-    """Get Amazon product image URL from ASIN"""
     asin = re.search(r'/(?:dp|gp/product)/([A-Z0-9]{10})', url)
     if asin:
         return f"https://m.media-amazon.com/images/I/{asin.group(1)}._SL500_.jpg"
     return ''
 
 def process_url(url):
-    """
-    Main URL processor:
-    Returns (affiliate_url, image_url) or (None, None) if not monetizable
-    """
-    # Step 1: expand if short URL
+    """Returns (affiliate_url, image_url) or (None, None)"""
     if needs_expanding(url):
-        print(f"    expanding: {url[:60]}")
         expanded = expand_url(url)
         if expanded != url:
-            print(f"    → {expanded[:80]}")
+            print(f"    expanded: {url[:50]} → {expanded[:60]}")
             url = expanded
-
-    # Step 2: convert to affiliate
     if is_amazon(url):
-        aff = make_amazon_affiliate(url)
+        aff   = make_amazon_affiliate(url)
         short = shorten(aff)
         image = get_amazon_image(aff)
         return short, image
-
     if is_flipkart_family(url):
         aff = make_cuelinks_affiliate(url)
         if aff:
-            short = shorten(aff)
-            return short, ''
-        return None, None
-
+            return shorten(aff), ''
     return None, None
 
-
-# ── Message processor ─────────────────────────────────────────────────────────
-
 def process_message(raw_text):
-    """
-    Process a Telegram message:
-    - Expand short URLs and replace with affiliate links inline
-    - Remove source site reference lines
-    - Return (clean_text, best_affiliate_url, image_url)
-    """
-    if not raw_text:
+    """Returns (clean_text, affiliate_url, image_url)"""
+    if not raw_text or not raw_text.strip():
         return None, None, None
 
     urls = extract_urls(raw_text)
@@ -186,58 +139,49 @@ def process_message(raw_text):
     IGNORE = ['t.me', 'telegram.me', 'instagram.com', 'twitter.com',
               'facebook.com', 'youtube.com', 'hcti.io', 'play.google.com']
 
-    working_text = raw_text
+    working_text   = raw_text
     best_affiliate = None
-    best_image = ''
+    best_image     = ''
 
-    # Step 1: Replace every processable URL inline with affiliate version
     for url in urls:
         if any(d in url for d in IGNORE):
             continue
         aff, img = process_url(url)
         if aff:
-            # Replace original URL with affiliate in message text
             working_text = working_text.replace(url, aff)
             if not best_affiliate:
                 best_affiliate = aff
-                best_image = img or ''
+                best_image     = img or ''
         else:
-            # URL is not monetizable and is a source site — remove it from text
             if is_source_site(url) or needs_expanding(url):
                 working_text = working_text.replace(url, '')
 
-    # Step 2: Clean up lines
     lines = working_text.split('\n')
     clean_lines = []
     for line in lines:
-        stripped = line.strip()
-        if not stripped:
+        s = line.strip()
+        if not s:
             clean_lines.append('')
             continue
-        # Skip noise lines
-        if stripped.startswith('On #'):
+        if s.startswith('On #'):
             continue
-        if re.match(r'^#\w', stripped):
+        if re.match(r'^#\w', s):
             continue
-        if stripped.lower().startswith('read more'):
+        if s.lower().startswith('read more'):
             continue
-        if stripped.lower().startswith('buy now'):
+        if s.lower().startswith('buy now'):
             continue
-        # Skip "Link:" line if it has no URL remaining (URL was replaced/removed)
-        if re.match(r'^link:\s*$', stripped, re.IGNORECASE):
+        if re.match(r'^link:\s*$', s, re.IGNORECASE):
             continue
-        # Skip lines that only had a URL which got removed (now just noise label)
-        if stripped.endswith(':') and len(stripped) < 20:
+        if s.endswith(':') and len(s) < 20 and not extract_urls(s):
             continue
         clean_lines.append(line)
 
     clean_text = re.sub(r'\n{3,}', '\n\n', '\n'.join(clean_lines)).strip()
-
     if not clean_text:
         return None, None, None
 
     return clean_text, best_affiliate, best_image
-
 
 # ── State / Deals ─────────────────────────────────────────────────────────────
 
@@ -271,12 +215,12 @@ def add_deal(deals, text, url, source, image):
     })
     return deals
 
-def post_to_telegram(bot_token, channel, text):
+def post_to_telegram(text):
     try:
         r = requests.post(
-            f"https://api.telegram.org/bot{bot_token}/sendMessage",
+            f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
             json={
-                'chat_id':                  f'@{channel}',
+                'chat_id':                  f'@{YOUR_CHANNEL}',
                 'text':                     text,
                 'disable_web_page_preview': True,
             },
@@ -286,16 +230,12 @@ def post_to_telegram(bot_token, channel, text):
     except Exception as e:
         return False, str(e)
 
-
-# ── Telegraph upload ──────────────────────────────────────────────────────────
-
 async def upload_to_telegraph(client, msg):
-    """Download photo from Telegram msg and upload to Telegraph"""
     try:
         photo_bytes = await client.download_media(msg.photo, bytes)
         if photo_bytes:
             files = {'file': ('image.jpg', io.BytesIO(photo_bytes), 'image/jpeg')}
-            resp = requests.post('https://telegra.ph/upload', files=files, timeout=15)
+            resp  = requests.post('https://telegra.ph/upload', files=files, timeout=15)
             if resp.status_code == 200:
                 data = resp.json()
                 if isinstance(data, list) and data:
@@ -304,7 +244,6 @@ async def upload_to_telegraph(client, msg):
         print(f"    telegraph error: {e}")
     return ''
 
-
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 async def run():
@@ -312,14 +251,27 @@ async def run():
     deals  = load_deals()
     total  = 0
 
-    print(f"Channel: @{YOUR_CHANNEL}")
-    print(f"Amazon tag: {AMAZON_TAG}")
-    print(f"Cuelinks: {'on' if CUELINKS_KEY else 'off'}")
-    print(f"Sources: {len(SOURCE_CHANNELS)} channels")
+    print(f"Channel  : @{YOUR_CHANNEL}")
+    print(f"Amazon   : {AMAZON_TAG}")
+    print(f"Cuelinks : {'on' if CUELINKS_KEY else 'off'}")
+    print(f"Sources  : {len(SOURCE_CHANNELS)} channels")
+    print(f"Session  : {SESSION_STRING[:20]}...")
 
-    posted_hashes = set()  # prevent cross-channel duplicates within same run
+    posted_hashes = set()
 
-    async with TelegramClient(StringSession(SESSION_STRING), API_ID, API_HASH) as client:
+    print("\nConnecting to Telegram...")
+    try:
+        client = TelegramClient(StringSession(SESSION_STRING), API_ID, API_HASH)
+        await client.connect()
+        if not await client.is_user_authorized():
+            print("❌ SESSION EXPIRED — regenerate A4 session string via Colab")
+            return
+        print("✅ Connected")
+    except Exception as e:
+        print(f"❌ Connection failed: {e}")
+        return
+
+    async with client:
         for channel in SOURCE_CHANNELS:
             if not channel:
                 continue
@@ -329,75 +281,62 @@ async def run():
             found       = 0
             limit       = 5 if last_id == 0 else 20
 
-            print(f"\n── {channel} (last_id={last_id}) ──")
+            print(f"\n── {channel} (last={last_id}, limit={limit}) ──")
 
             try:
-                async def read_channel(ch=channel, lid=last_id, lim=limit):
-                    nonlocal new_last_id, found, total, deals
+                count = 0
+                async for msg in client.iter_messages(channel, min_id=last_id, limit=limit):
+                    count += 1
+                    if msg.id > new_last_id:
+                        new_last_id = msg.id
 
-                    async for msg in client.iter_messages(ch, min_id=lid, limit=lim):
-                        if msg.id <= lid:
-                            continue
+                    raw = getattr(msg, 'text', '') or getattr(msg, 'caption', '') or ''
+                    print(f"  msg {msg.id}: {len(raw)} chars | has_photo={bool(getattr(msg,'photo',None))}")
 
-                        # Update last seen
-                        if msg.id > new_last_id:
-                            new_last_id = msg.id
+                    if not raw.strip():
+                        continue
 
-                        # Get message text
-                        raw = getattr(msg, 'text', '') or getattr(msg, 'caption', '') or ''
-                        if not raw.strip():
-                            continue
+                    msg_hash = hashlib.md5(raw[:80].encode()).hexdigest()[:8]
+                    if msg_hash in posted_hashes:
+                        print(f"    → duplicate skip")
+                        continue
 
-                        # Deduplicate across channels
-                        msg_hash = hashlib.md5(raw[:80].encode()).hexdigest()[:8]
-                        if msg_hash in posted_hashes:
-                            print(f"  ⏭️  msg {msg.id} duplicate — skipping")
-                            continue
+                    clean_text, aff_url, image_url = process_message(raw)
+                    print(f"    → clean={bool(clean_text)} aff={bool(aff_url)} img={bool(image_url)}")
 
-                        # Process message
-                        clean_text, affiliate_url, image_url = process_message(raw)
+                    if not clean_text:
+                        continue
 
-                        if not clean_text:
-                            print(f"  ⬜ msg {msg.id} — no content after clean")
-                            continue
+                    if not image_url and getattr(msg, 'photo', None):
+                        image_url = await upload_to_telegraph(client, msg)
 
-                        # If no affiliate URL found but message has a photo, try Telegraph
-                        if not image_url and hasattr(msg, 'photo') and msg.photo:
-                            image_url = await upload_to_telegraph(client, msg)
+                    final = clean_text
+                    if aff_url:
+                        final += f"\n\n🔗 {aff_url}"
+                    final += f"\n\n🛒 Deals by @{YOUR_CHANNEL}"
 
-                        # Build final message
-                        # affiliate URLs already replaced inline in clean_text
-                        # only append link if not already in text
-                        final_text = clean_text
-                        if affiliate_url and affiliate_url not in clean_text:
-                            final_text += f"\n\n🔗 {affiliate_url}"
-                        final_text += f"\n\n🛒 Deals by @{YOUR_CHANNEL}"
+                    ok, resp = post_to_telegram(final)
+                    if ok:
+                        print(f"    ✅ posted!")
+                        posted_hashes.add(msg_hash)
+                        deals = add_deal(deals, final, aff_url or '', channel, image_url)
+                        found += 1
+                        total += 1
+                    else:
+                        print(f"    ❌ {resp[:100]}")
 
-                        # Post to Telegram
-                        ok, resp = post_to_telegram(BOT_TOKEN, YOUR_CHANNEL, final_text)
-                        if ok:
-                            print(f"  ✅ msg {msg.id} {'→ affiliate' if affiliate_url else '(no aff)'}")
-                            posted_hashes.add(msg_hash)
-                            deals = add_deal(deals, final_text, affiliate_url or '', ch, image_url)
-                            found += 1
-                            total += 1
-                        else:
-                            print(f"  ❌ msg {msg.id}: {resp[:80]}")
+                print(f"  scanned {count} msgs | posted {found}")
 
-                await asyncio.wait_for(read_channel(), timeout=30)
-
-            except asyncio.TimeoutError:
-                print(f"  ⏱️ timeout")
             except Exception as e:
-                print(f"  ⚠️ {e}")
+                import traceback
+                print(f"  ❌ ERROR: {e}")
+                traceback.print_exc()
 
             state[channel] = new_last_id
-            print(f"  posted: {found}")
 
-    # Save everything
     save_state(state)
     save_deals(deals)
-    print(f"\n✅ Done: {total} posted | {len(deals)} deals on website")
+    print(f"\n✅ Done: {total} posted | {len(deals)} on website")
 
 if __name__ == '__main__':
     asyncio.run(run())
