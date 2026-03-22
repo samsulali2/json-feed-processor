@@ -325,14 +325,17 @@ async def run():
                         if not text:
                             if msg.id > new_last_id: new_last_id = msg.id
                             continue
+                        # rewrite affiliate links if possible
                         new_text, modified = rewrite_message(text)
-                        if modified:
+                        # post if has any URL (affiliate or not)
+                        urls = extract_urls(text)
+                        if urls:
                             new_text += f"\n\n🛒 Deals by @{YOUR_CHANNEL}"
                             ok, resp = post_telegram(bot_api, new_text)
                             if ok:
-                                print(f"  ✅ msg {msg.id}")
-                                urls = extract_urls(new_text)
-                                deals = save_deal(deals, new_text, urls[0] if urls else '', ch)
+                                print(f"  ✅ msg {msg.id} {'(affiliate)' if modified else ''}")
+                                post_urls = extract_urls(new_text)
+                                deals = save_deal(deals, new_text, post_urls[0] if post_urls else '', ch)
                                 found += 1
                                 total += 1
                             else:
