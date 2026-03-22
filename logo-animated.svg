@@ -1,0 +1,198 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 90" width="600" height="90">
+  <defs>
+    <style>
+      .crazy {
+        font-family: 'Arial Black', sans-serif;
+        font-weight: 900;
+        fill: white;
+        font-size: 42px;
+        letter-spacing: 3px;
+        animation: crazy-shake 5s ease-in-out infinite;
+        transform-origin: 200px 50px;
+      }
+      @keyframes crazy-shake {
+        0%,85%,100% { transform: translateX(0) rotate(0deg); }
+        87% { transform: translateX(-3px) rotate(-1deg); }
+        90% { transform: translateX(3px) rotate(1deg); }
+        93% { transform: translateX(-2px) rotate(-0.5deg); }
+        96% { transform: translateX(2px) rotate(0.5deg); }
+      }
+
+      .online {
+        font-family: 'Arial Black', sans-serif;
+        font-weight: 900;
+        fill: #00D4FF;
+        font-size: 42px;
+        letter-spacing: 2px;
+        animation: cyan-glow 2s ease-in-out infinite;
+      }
+
+      .deals {
+        font-family: 'Arial Black', sans-serif;
+        font-weight: 900;
+        fill: #00D4FF;
+        font-size: 42px;
+        letter-spacing: 2px;
+        animation: cyan-glow 2s ease-in-out infinite 0.4s;
+      }
+
+      @keyframes cyan-glow {
+        0%,100% { fill: #00D4FF; filter: drop-shadow(0 0 3px rgba(0,212,255,0.3)); }
+        50% { fill: #00FFFF; filter: drop-shadow(0 0 12px rgba(0,255,255,0.9)); }
+      }
+
+      .star {
+        animation: star-spin 4s linear infinite;
+        transform-origin: 88px 45px;
+      }
+      @keyframes star-spin {
+        0% { transform: rotate(0deg) scale(1); }
+        50% { transform: rotate(180deg) scale(1.3); }
+        100% { transform: rotate(360deg) scale(1); }
+      }
+
+      .cart {
+        animation: cart-bounce 2.5s ease-in-out infinite;
+        transform-origin: 38px 45px;
+      }
+      @keyframes cart-bounce {
+        0%,100% { transform: translateY(0); }
+        50% { transform: translateY(-4px); }
+      }
+
+      .spark1 { animation: sf1 2s ease-out infinite; }
+      .spark2 { animation: sf2 2s ease-out infinite 0.4s; }
+      .spark3 { animation: sf3 2s ease-out infinite 0.8s; }
+      .spark4 { animation: sf4 2s ease-out infinite 1.2s; }
+      .spark5 { animation: sf5 2s ease-out infinite 1.6s; }
+      .spark6 { animation: sf6 2s ease-out infinite 0.2s; }
+
+      @keyframes sf1 { 0%{transform:translate(0,0);opacity:1;} 100%{transform:translate(-30px,-25px);opacity:0;} }
+      @keyframes sf2 { 0%{transform:translate(0,0);opacity:1;} 100%{transform:translate(30px,-28px);opacity:0;} }
+      @keyframes sf3 { 0%{transform:translate(0,0);opacity:1;} 100%{transform:translate(-35px,-10px);opacity:0;} }
+      @keyframes sf4 { 0%{transform:translate(0,0);opacity:1;} 100%{transform:translate(35px,-12px);opacity:0;} }
+      @keyframes sf5 { 0%{transform:translate(0,0);opacity:1;} 100%{transform:translate(-15px,-35px);opacity:0;} }
+      @keyframes sf6 { 0%{transform:translate(0,0);opacity:1;} 100%{transform:translate(15px,-35px);opacity:0;} }
+
+      .shine {
+        animation: shine-sweep 4s linear infinite;
+      }
+      @keyframes shine-sweep {
+        0% { transform: translateX(-600px) skewX(-15deg); opacity:0; }
+        20% { opacity:0.05; }
+        50% { transform: translateX(600px) skewX(-15deg); opacity:0; }
+        100% { transform: translateX(600px) skewX(-15deg); opacity:0; }
+      }
+
+      .tagline {
+        font-family: Arial, sans-serif;
+        font-size: 11px;
+        fill: rgba(255,255,255,0.5);
+        letter-spacing: 3px;
+        text-transform: uppercase;
+        animation: tagline-fade 3s ease-in-out infinite;
+      }
+      @keyframes tagline-fade {
+        0%,100% { opacity:0.5; }
+        50% { opacity:0.9; }
+      }
+
+      .border-glow {
+        animation: border-pulse 2s ease-in-out infinite;
+      }
+      @keyframes border-pulse {
+        0%,100% { stroke-opacity: 0.3; }
+        50% { stroke-opacity: 0.7; }
+      }
+
+      .live-dot {
+        animation: live-blink 1.2s ease-in-out infinite;
+      }
+      @keyframes live-blink {
+        0%,100% { opacity:1; r:5; }
+        50% { opacity:0.3; r:3; }
+      }
+    </style>
+
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#0F0C29"/>
+      <stop offset="40%" style="stop-color:#16213E"/>
+      <stop offset="100%" style="stop-color:#0F2027"/>
+    </linearGradient>
+
+    <linearGradient id="starGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#FFD600"/>
+      <stop offset="100%" style="stop-color:#FF6B00"/>
+    </linearGradient>
+
+    <linearGradient id="divider" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:rgba(255,107,0,0)"/>
+      <stop offset="50%" style="stop-color:rgba(255,107,0,0.8)"/>
+      <stop offset="100%" style="stop-color:rgba(255,107,0,0)"/>
+    </linearGradient>
+
+    <clipPath id="clip">
+      <rect width="600" height="90" rx="12"/>
+    </clipPath>
+  </defs>
+
+  <g clip-path="url(#clip)">
+    <!-- Background -->
+    <rect width="600" height="90" fill="url(#bg)"/>
+
+    <!-- Shine sweep -->
+    <rect class="shine" x="0" y="0" width="100" height="90" fill="white"/>
+
+    <!-- Bottom orange accent line -->
+    <rect x="0" y="87" width="600" height="3" fill="#FF6B00" opacity="0.8"/>
+
+    <!-- Top subtle line -->
+    <rect x="0" y="0" width="600" height="2" fill="#FF6B00" opacity="0.4"/>
+
+    <!-- Border glow -->
+    <rect class="border-glow" width="600" height="90" rx="12" fill="none" stroke="#FF6B00" stroke-width="1.5"/>
+
+    <!-- Cart icon -->
+    <g class="cart">
+      <path d="M22 28 L28 36 L52 36" fill="none" stroke="white" stroke-width="4" stroke-linecap="round"/>
+      <path d="M28 36 L32 54 L52 54 L56 36 Z" fill="none" stroke="white" stroke-width="3.5" stroke-linejoin="round"/>
+      <circle cx="34" cy="60" r="4" fill="white"/>
+      <circle cx="50" cy="60" r="4" fill="white"/>
+    </g>
+
+    <!-- Vertical divider after cart -->
+    <rect x="72" y="15" width="1.5" height="60" fill="url(#divider)"/>
+
+    <!-- Star burst -->
+    <g class="star">
+      <polygon points="88,28 92,38 103,38 94,45 98,55 88,48 78,55 82,45 73,38 84,38"
+               fill="url(#starGrad)"/>
+    </g>
+
+    <!-- Spark particles -->
+    <circle class="spark1" cx="80" cy="33" r="4" fill="#FFD600"/>
+    <circle class="spark2" cx="97" cy="31" r="3" fill="#FF6B00"/>
+    <rect class="spark3" x="72" y="36" width="5" height="5" rx="1" fill="#FFD600" transform="rotate(45 74 38)"/>
+    <rect class="spark4" x="100" y="34" width="4" height="4" rx="1" fill="#FF9900" transform="rotate(30 102 36)"/>
+    <circle class="spark5" cx="86" cy="26" r="3" fill="#FFEE00"/>
+    <circle class="spark6" cx="91" cy="24" r="3" fill="#FF6B00"/>
+
+    <!-- Vertical divider after star -->
+    <rect x="115" y="15" width="1.5" height="60" fill="url(#divider)"/>
+
+    <!-- CRAZY text -->
+    <text class="crazy" x="138" y="58" dominant-baseline="middle" alignment-baseline="middle">CRAZY</text>
+
+    <!-- ONLINE text -->
+    <text class="online" x="315" y="58" dominant-baseline="middle" alignment-baseline="middle">ONLINE</text>
+
+    <!-- DEALS text -->
+    <text class="deals" x="490" y="58" dominant-baseline="middle" alignment-baseline="middle">DEALS</text>
+
+    <!-- Live indicator -->
+    <circle class="live-dot" cx="570" cy="20" r="5" fill="#FF2D2D"/>
+    <text x="580" y="24" font-family="Arial" font-size="9" fill="#FF2D2D" font-weight="bold">LIVE</text>
+
+
+  </g>
+</svg>
