@@ -105,16 +105,24 @@ def process_cuelinks_url(url):
     return None
 
 def make_affiliate(url):
+    if is_known_shortener(url):
+        return None  # don't touch third-party shorteners
     if is_amazon(url) or re.search(r'amzn\.to|amzn\.in|a\.co/', url):
         return process_amazon_url(url)
     if is_cuelinks_supported(url):
         return process_cuelinks_url(url)
     return None
 
+def is_known_shortener(url):
+    """Known third-party shorteners used by deal channels — don't process these"""
+    shorteners = ['bitli.store', 'bit.ly', 'tiny.cc', 'ow.ly', 'ddime.in',
+                  'clnk.in', 'shrinkme.io', 'ouo.io', 'adf.ly']
+    return any(s in url for s in shorteners)
+
 def extract_urls(text):
     return re.findall(r'https?://[^\s\)\]>\"\']+', text or '')
 
-def rewrite_message(text):
+
     urls = extract_urls(text)
     modified = False
     new_text = text
@@ -249,9 +257,10 @@ def load_deals():
         with open(DEALS_FILE) as f: return json.load(f)
     return []
 
-def save_deal(deals, text, url, source):
+def save_deal(deals, text, url, source, has_image=False):
     deals.insert(0, {
         'text': text, 'url': url, 'source': source,
+        'has_image': has_image,
         'timestamp': datetime.now(timezone.utc).isoformat()
     })
     deals = deals[:MAX_DEALS]
@@ -325,17 +334,23 @@ async def run():
                         if not text:
                             if msg.id > new_last_id: new_last_id = msg.id
                             continue
+
                         # rewrite affiliate links if possible
                         new_text, modified = rewrite_message(text)
-                        # post if has any URL (affiliate or not)
+
+                        # check if message has image
+                        has_image = hasattr(msg, 'photo') and msg.photo is not None
+
+                        # post if has any URL
                         urls = extract_urls(text)
                         if urls:
                             new_text += f"\n\n🛒 Deals by @{YOUR_CHANNEL}"
                             ok, resp = post_telegram(bot_api, new_text)
                             if ok:
-                                print(f"  ✅ msg {msg.id} {'(affiliate)' if modified else ''}")
+                                print(f"  ✅ msg {msg.id} {'(affiliate)' if modified else ''} {'📷' if has_image else ''}")
                                 post_urls = extract_urls(new_text)
-                                deals = save_deal(deals, new_text, post_urls[0] if post_urls else '', ch)
+                                deal_url = post_urls[0] if post_urls else ''
+                                deals = save_deal(deals, new_text, deal_url, ch, has_image)
                                 found += 1
                                 total += 1
                             else:
