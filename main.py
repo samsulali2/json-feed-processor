@@ -159,7 +159,28 @@ def get_best_url(urls):
             return url
     return urls[0]
 
-def rewrite_message(text):
+def clean_message(text):
+    """Remove source site references, hashtags, and unwanted links from message"""
+    # Remove lines containing source site links
+    lines = text.split('\n')
+    clean_lines = []
+    for line in lines:
+        # Skip lines with source site URLs
+        if any(d in line for d in SKIP_DOMAINS):
+            continue
+        # Skip lines that are just hashtags
+        if re.match(r'^[\s#\w]+$', line) and '#' in line:
+            continue
+        # Skip lines starting with "Link:" or "On #"
+        if re.match(r'^(Link:|On #)', line.strip()):
+            continue
+        clean_lines.append(line)
+    text = '\n'.join(clean_lines)
+    # Remove extra blank lines
+    text = re.sub(r'\n{3,}', '\n\n', text).strip()
+    return text
+
+
     urls = extract_urls(text)
     modified = False
     new_text = text
@@ -391,7 +412,7 @@ def post_telegram(bot_api, text):
     r = requests.post(bot_api, json={
         'chat_id': f'@{YOUR_CHANNEL}',
         'text': text,
-        'disable_web_page_preview': False
+        'disable_web_page_preview': True
     }, timeout=15)
     return r.status_code == 200, r.text
 
@@ -454,6 +475,12 @@ async def run():
                         if msg.id <= lid: continue
                         text = getattr(msg, 'text', '') or getattr(msg, 'caption', '') or ''
                         if not text:
+                            if msg.id > new_last_id: new_last_id = msg.id
+                            continue
+
+                        # Clean source site references first
+                        text = clean_message(text)
+                        if not text.strip():
                             if msg.id > new_last_id: new_last_id = msg.id
                             continue
 
