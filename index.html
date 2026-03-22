@@ -328,6 +328,9 @@ border-radius: 10px;
 .badge-amazon  { background: #FF9900; color: #000; }
 .badge-flipkart{ background: #2874F0; color: #fff; }
 .badge-myntra  { background: #FF3F6C; color: #fff; }
+.badge-ajio    { background: #000000; color: #fff; }
+.badge-meesho  { background: #F16565; color: #fff; }
+.badge-nykaa   { background: #FC2779; color: #fff; }
 .badge-other   { background: #553C9A; color: #fff; }
 .time-ago { font-size: 11px; color: var(--muted); }
 .card-body { padding: 10px 14px; flex: 1; }
@@ -452,9 +455,12 @@ updateVisitorCount();
 // ── Helpers ──
 function getStore(text, url) {
 const t = (text + url).toLowerCase();
-if (t.includes('amazon') || t.includes('amzn')) return 'amazon';
-if (t.includes('flipkart') || t.includes('shopsy')) return 'flipkart';
+if (t.includes('amazon') || t.includes('amzn') || t.includes('tinyurl') && t.includes('amazon')) return 'amazon';
+if (t.includes('flipkart') || t.includes('shopsy') || t.includes('fktr')) return 'flipkart';
 if (t.includes('myntra')) return 'myntra';
+if (t.includes('ajio')) return 'ajio';
+if (t.includes('meesho')) return 'meesho';
+if (t.includes('nykaa')) return 'nykaa';
 return 'other';
 }
 function getStoreBadge(store) {
@@ -462,6 +468,9 @@ const map = {
 amazon:   '<span class="store-badge badge-amazon">Amazon</span>',
 flipkart: '<span class="store-badge badge-flipkart">Flipkart</span>',
 myntra:   '<span class="store-badge badge-myntra">Myntra</span>',
+ajio:     '<span class="store-badge badge-ajio">Ajio</span>',
+meesho:   '<span class="store-badge badge-meesho">Meesho</span>',
+nykaa:    '<span class="store-badge badge-nykaa">Nykaa</span>',
 other:    '<span class="store-badge badge-other">Deal</span>',
 };
 return map[store] || map.other;
