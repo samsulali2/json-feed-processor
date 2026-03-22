@@ -48,7 +48,7 @@ jobs:
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git pull --rebase origin main || true
-          git add deals.json last_seen.json
+          git add deals.json last_seen.json seen_hashes.json
           git diff --staged --quiet && echo "no changes to commit" || (
             git commit -m "sync: update deals and state [skip ci]"
             git push origin main
