@@ -176,7 +176,24 @@ def expand_url_fully(url):
 
 def get_asin(url):
     m = re.search(r'/(?:dp|gp/product|d)/([A-Z0-9]{10})(?:[/?&]|$)', url or '')
-    return m.group(1) if m else None
+    if m: return m.group(1)
+    # Also check query param (creativeASIN=...)
+    m2 = re.search(r'[?&](?:creativeASIN|ASIN)=([A-Z0-9]{10})', url or '')
+    return m2.group(1) if m2 else None
+
+def get_amazon_real_image_url(asin):
+    """
+    Amazon Associates image widget — returns REAL product photo.
+    No watermarks, no screenshots, official Amazon image.
+    URL is publicly accessible from any browser + GitHub Actions.
+    Format: _SL500_ = 500px, _SL250_ = 250px
+    """
+    if not asin:
+        return ''
+    return (f"https://ws-in.amazon-adsystem.com/widgets/q"
+            f"?_encoding=UTF8&ASIN={asin}&Format=_SL500_"
+            f"&ID=AsinImage&MarketPlace=IN&ServiceVersion=20070822&WS=1"
+            f"&tag={AMAZON_TAG}")
 
 def make_amazon_affiliate(url):
     asin = get_asin(url)
@@ -743,64 +760,71 @@ async def run():
 
                     final_text = clean + f"\n\n🛒 Deals by @{YOUR_CHANNEL}"
 
-                    # ── IMAGE STRATEGY ────────────────────────────────────────
-                    # Case A: Source message has photo attached
-                    #   → Download bytes via Telethon → sendPhoto(bytes) [RELIABLE]
-                    #   → Also upload to Telegraph for website URL
+                    # ── IMAGE STRATEGY ─────────────────────────────────────
+                    # Priority 1: Amazon deal → Amazon Associates image URL
+                    #   Real product photo, no watermarks, works everywhere
+                    #   sendPhoto(url) — Telegram fetches from Amazon directly
                     #
-                    # Case B: No photo, but Amazon/Flipkart deal
-                    #   → Scrape real og:image from product page
-                    #   → sendPhoto(url) — Telegram fetches it [works, no proxy issue]
-                    #   → Same URL stored for website
+                    # Priority 2: Non-Amazon (Flipkart etc) with source photo
+                    #   → Telethon bytes → sendPhoto(bytes)
                     #
-                    # Case C: No photo, no scrapeable image
-                    #   → Text-only post [honest, no fake URLs]
-                    # ─────────────────────────────────────────────────────────
+                    # Priority 3: No image available → text only
+                    # ────────────────────────────────────────────────────────
 
-                    img_bytes     = None
-                    img_saved     = ''    # URL for website
-                    real_img_url  = ''    # real scraped image URL
+                    img_bytes    = None
+                    img_saved    = ''
+                    real_img_url = ''
 
-                    if has_photo:
-                        # Case A: Telethon bytes
+                    asin = get_asin(product_url) if product_url else None
+
+                    if asin:
+                        # Amazon deal — use official Associates image (no watermark!)
+                        real_img_url = get_amazon_real_image_url(asin)
+                        img_saved    = real_img_url
+                        print(f"    📷 Amazon Associates image (ASIN={asin})")
+
+                    elif has_photo:
+                        # Non-Amazon deal with photo — use Telethon
                         img_bytes, telegraph_url = await get_telethon_photo_bytes(client, msg)
-                        img_saved = telegraph_url  # Telegraph URL for website
-                        # If Telegraph failed, try to scrape product page as fallback for website
-                        if not img_saved and product_url:
-                            img_saved = scrape_product_image(product_url)
+                        img_saved = telegraph_url
+                        if not img_bytes:
+                            print("    📷 Telethon failed")
 
-                    else:
-                        # Case B: Scrape product image
-                        if product_url:
-                            real_img_url = scrape_product_image(product_url)
-                            img_saved    = real_img_url
+                    elif product_url:
+                        # Last resort: scrape product page
+                        real_img_url = scrape_product_image(product_url)
+                        img_saved    = real_img_url
 
                     print(f"    img: bytes={'yes '+str(len(img_bytes)//1024)+'KB' if img_bytes else 'no'}  url={img_saved[:50] if img_saved else 'none'}")
 
                     # Post
-                    ok_post  = False
-                    tg_url   = ''  # Telegram CDN URL — best for website
+                    ok_post = False
+                    tg_url  = ''
 
-                    if img_bytes:
-                        ok_post, tg_url = post_photo_bytes(chat_id, img_bytes, final_text)
-                        if not ok_post:
-                            print(f"    sendPhoto(bytes) failed, trying text")
-                            ok_post, _ = post_text(chat_id, final_text)
-
-                    elif real_img_url:
+                    if real_img_url:
+                        # Send image by URL (Amazon Associates / scraped)
+                        # Telegram fetches it — real product photo, no watermark
                         ok_post, tg_url = post_photo_url(chat_id, real_img_url, final_text)
                         if not ok_post:
                             print(f"    sendPhoto(url) failed, trying text")
                             ok_post, _ = post_text(chat_id, final_text)
 
+                    elif img_bytes:
+                        # Flipkart/other with Telethon photo bytes
+                        ok_post, tg_url = post_photo_bytes(chat_id, img_bytes, final_text)
+                        if not ok_post:
+                            print(f"    sendPhoto(bytes) failed, trying text")
+                            ok_post, _ = post_text(chat_id, final_text)
+
                     else:
                         ok_post, _ = post_text(chat_id, final_text)
 
-                    # Use Telegram CDN URL as website image if we got one
-                    # This is always publicly accessible — no blocking issues
+                    # Telegram CDN URL from response = best website image
                     if tg_url:
                         img_saved = tg_url
-                        print(f"    📷 website img: Telegram CDN")
+                        print(f"    📷 website: Telegram CDN")
+                    elif img_saved:
+                        print(f"    📷 website: {img_saved[:60]}")
 
                     if ok_post:
                         mode = '📷 bytes' if img_bytes else ('📷 url' if real_img_url else '📝 text')
