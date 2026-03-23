@@ -19,94 +19,110 @@ min-height: 100vh;
 overflow-x: hidden;
 }
 
-.tg-float {
-position: fixed;
-top: 20px;
-right: 20px;
-z-index: 999;
-background: #229ED9;
-color: white;
-text-decoration: none;
-font-weight: 800;
-font-size: 18px;
-padding: 10px 18px;
-border-radius: 20px;
-display: flex;
-align-items: center;
-gap: 6px;
-box-shadow: 0 0 0 0 rgba(34,158,217,0.7);
-animation: tg-pulse 2s infinite;
-transition: transform 0.2s;
-}
-.tg-float:hover { transform: scale(1.05); }
-@keyframes tg-pulse {
-0% { box-shadow: 0 0 0 0 rgba(34,158,217,0.7); }
-70% { box-shadow: 0 0 0 12px rgba(34,158,217,0); }
-100% { box-shadow: 0 0 0 0 rgba(34,158,217,0); }
-}
-
-/* ── UNIFIED HEADER ── */
+/* ── HEADER LAYOUT ── */
 header {
-background: linear-gradient(160deg, #0F0C29 0%, #1a1040 60%, #0F0C29 100%);
+background: linear-gradient(160deg, #0a0820 0%, #141b3a 50%, #0a0820 100%);
 padding: 0;
-box-shadow: 0 4px 30px rgba(255,107,0,0.25);
+box-shadow: 0 4px 32px rgba(255,107,0,0.3);
 position: relative;
-z-index: 10;
+z-index: 100;
 overflow: hidden;
 }
 header::after {
 content: '';
-position: absolute;
-inset: 0;
-background: radial-gradient(ellipse 80% 60% at 50% 0%, rgba(255,107,0,0.07) 0%, transparent 70%);
+position: absolute; inset: 0;
+background: radial-gradient(ellipse 70% 80% at 50% 0%, rgba(255,107,0,0.06) 0%, transparent 70%);
 pointer-events: none;
 }
 
-/* Row 1: Full-width logo banner */
+/* Row 1: Logo row — Telegram btn left | SVG center | Search right */
 .header-logo-row {
-width: 100%;
-display: flex;
-justify-content: center;
+display: grid;
+grid-template-columns: 200px 1fr 200px;
 align-items: center;
-background: linear-gradient(160deg, #0F0C29 0%, #16213E 50%, #0F0C29 100%);
-padding: 6px 0 0 0;
-animation: header-enter 0.6s ease-out;
+padding: 10px 20px 0;
+animation: header-enter 0.5s ease-out;
 }
 @keyframes header-enter {
-from { opacity: 0; transform: translateY(-12px); }
-to   { opacity: 1; transform: translateY(0); }
+from { opacity:0; transform:translateY(-10px); }
+to   { opacity:1; transform:translateY(0); }
+}
+.header-tg-btn {
+display: inline-flex;
+align-items: center;
+gap: 7px;
+background: #229ED9;
+color: white;
+text-decoration: none;
+font-weight: 800;
+font-size: 13px;
+padding: 10px 16px;
+border-radius: 30px;
+white-space: nowrap;
+box-shadow: 0 0 0 0 rgba(34,158,217,0.7);
+animation: tg-pulse 2s infinite;
+transition: transform 0.2s;
+justify-self: start;
+}
+.header-tg-btn:hover { transform: scale(1.05); }
+@keyframes tg-pulse {
+0%   { box-shadow: 0 0 0 0 rgba(34,158,217,0.7); }
+70%  { box-shadow: 0 0 0 12px rgba(34,158,217,0); }
+100% { box-shadow: 0 0 0 0 rgba(34,158,217,0); }
 }
 .logo-banner {
-/* Max width so it never stretches too wide */
-width: min(900px, 95vw);
+width: 100%;
+max-width: 700px;
 height: auto;
-display: block;
-/* Responsive: scales down on narrow screens */
-max-height: clamp(55px, 8vw, 90px);
+max-height: clamp(60px, 9vw, 95px);
 object-fit: contain;
+display: block;
+margin: 0 auto;
 }
+/* Search bar — right column */
+.header-search {
+justify-self: end;
+display: flex;
+align-items: center;
+gap: 6px;
+background: rgba(255,255,255,0.07);
+border: 1px solid rgba(255,255,255,0.15);
+border-radius: 30px;
+padding: 6px 14px;
+transition: border-color 0.2s, background 0.2s;
+width: 100%;
+max-width: 190px;
+}
+.header-search:focus-within {
+border-color: rgba(255,107,0,0.6);
+background: rgba(255,255,255,0.1);
+}
+.header-search input {
+background: none;
+border: none;
+outline: none;
+color: white;
+font-size: 13px;
+font-family: 'Nunito', sans-serif;
+width: 100%;
+}
+.header-search input::placeholder { color: rgba(255,255,255,0.4); }
+.header-search svg { flex-shrink: 0; opacity: 0.5; }
 
-/* Row 2: Subheading + nav */
+/* Row 2: Tagline row — centered below logo */
 .header-sub-row {
 display: flex;
 align-items: center;
-justify-content: space-between;
-padding: 7px 20px;
-background: rgba(0,0,0,0.35);
-border-top: 1px solid rgba(255,107,0,0.18);
-gap: 12px;
-position: relative;
-z-index: 1;
+justify-content: center;
+gap: 10px;
+padding: 6px 20px 8px;
+border-top: 1px solid rgba(255,107,0,0.15);
+margin-top: 6px;
+background: rgba(0,0,0,0.25);
 }
-.header-tagline {
-display: flex;
-align-items: center;
-gap: 8px;
-flex: 1;
-}
-.header-tagline .tagline-main {
+.tagline-main {
 font-family: 'Bangers', cursive;
-font-size: clamp(0.95rem, 2vw, 1.25rem);
+font-size: clamp(1rem, 2.2vw, 1.35rem);
 letter-spacing: 3px;
 line-height: 1;
 background: linear-gradient(90deg, #FF2D2D, #FF6B00, #FFD600, #FF6B00, #FF2D2D);
@@ -117,24 +133,16 @@ background-clip: text;
 animation: gradient-shift 3s linear infinite;
 white-space: nowrap;
 }
-.header-tagline .tagline-sub {
-font-size: 11px;
-font-weight: 600;
+.tagline-divider { width:1px; height:16px; background:rgba(255,107,0,0.3); flex-shrink:0; }
+.tagline-sub {
+font-size: 11px; font-weight: 600;
 color: rgba(255,255,255,0.38);
 letter-spacing: 0.5px;
 white-space: nowrap;
 }
-.tagline-divider {
-width: 1px; height: 18px;
-background: rgba(255,107,0,0.3);
-flex-shrink: 0;
-}
-
-/* Animated fire icon */
 .fire-icon {
 display: inline-block;
-animation: fire-bounce 0.85s ease-in-out infinite alternate,
-           fire-glow 1.6s ease-in-out infinite;
+animation: fire-bounce 0.85s ease-in-out infinite alternate, fire-glow 1.6s ease-in-out infinite;
 transform-origin: bottom center;
 }
 @keyframes fire-bounce {
@@ -142,19 +150,38 @@ transform-origin: bottom center;
 100% { transform: scaleY(1.2) rotate(5deg); }
 }
 @keyframes fire-glow {
-0%, 100% { filter: drop-shadow(0 0 4px #FF6B00); }
-50%       { filter: drop-shadow(0 0 14px #FFD600); }
+0%,100% { filter: drop-shadow(0 0 4px #FF6B00); }
+50%     { filter: drop-shadow(0 0 14px #FFD600); }
+}
+.live-badge {
+display: flex; align-items: center; gap: 5px;
+font-size: 11px; font-weight: 700;
+color: rgba(255,255,255,0.6);
+}
+.live-dot {
+width: 7px; height: 7px;
+background: #FF2D2D;
+border-radius: 50%;
+animation: live-blink 1.2s ease-in-out infinite;
+}
+@keyframes live-blink { 0%,100%{opacity:1;} 50%{opacity:0.2;} }
+@keyframes gradient-shift { 0%{background-position:0%;} 100%{background-position:200%;} }
+.logo { display: none; }
+
+/* Mobile responsive */
+@media (max-width: 640px) {
+.header-logo-row {
+  grid-template-columns: 1fr;
+  grid-template-rows: auto auto auto;
+  padding: 8px 12px 0;
+  gap: 8px;
+}
+.header-tg-btn { justify-self: center; font-size: 12px; padding: 8px 14px; }
+.header-search { justify-self: center; max-width: 90%; }
+.tagline-sub { display: none; }
 }
 
-/* Nav on the right */
-.header-nav {
-display: flex;
-align-items: center;
-gap: 8px;
-flex-shrink: 0;
-padding-right: 110px;
-}
-.logo { display: none; }
+/* header css above */
 /* hero merged into header — keep gradient-shift for logo text */
 @keyframes gradient-shift {
 0%   { background-position: 0%; }
@@ -412,7 +439,7 @@ footer a { color: var(--orange); text-decoration: none; }
 
 @media (max-width: 768px) {
 .sidebar { display: none; }
-.tg-float { font-size: 11px; padding: 8px 12px; }
+
 nav { padding-right: 100px; }
 .deals-grid { grid-template-columns: 1fr 1fr; }
 }
@@ -435,24 +462,27 @@ font-weight: 700;
 letter-spacing: 1px;
 text-transform: uppercase;
 }
-</style></head><body><a href="https://t.me/hugediscountshop" target="_blank" class="tg-float">
-✈️ Join Telegram
-</a><header>
-  <!-- Row 1: Full-width CRAZY ONLINE DEALS logo banner -->
+</style></head><body><header>
+  <!-- Row 1: Telegram btn (left) | Logo SVG (center) | Search (right) -->
   <div class="header-logo-row">
+    <a href="https://t.me/hugediscountshop" target="_blank" class="header-tg-btn">
+      ✈️ Join Telegram
+    </a>
     <img src="logo-animated.svg" alt="Crazy Online Deals" class="logo-banner"/>
+    <div class="header-search">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5">
+        <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+      </svg>
+      <input type="text" id="search-input" placeholder="Search deals..." oninput="searchDeals(this.value)"/>
+    </div>
   </div>
-  <!-- Row 2: Subheading + nav -->
+  <!-- Row 2: Tagline centered -->
   <div class="header-sub-row">
-    <div class="header-tagline">
-      <span class="tagline-main">HOTTEST DEALS IN INDIA <span class="fire-icon">🔥</span></span>
-      <span class="tagline-divider"></span>
-      <span class="tagline-sub">Updated every 5 min &bull; Amazon &bull; Flipkart &bull; Myntra</span>
-    </div>
-    <div class="header-nav">
-      <div class="live-badge"><div class="live-dot"></div> Live</div>
-      <nav><a href="#deals">Deals</a><a href="#about">About</a></nav>
-    </div>
+    <span class="tagline-main">HOTTEST DEALS IN INDIA <span class="fire-icon">🔥</span></span>
+    <span class="tagline-divider"></span>
+    <span class="tagline-sub">Updated every 5 min &bull; Amazon &bull; Flipkart &bull; Myntra</span>
+    <span class="tagline-divider"></span>
+    <div class="live-badge"><div class="live-dot"></div> Live</div>
   </div>
 </header><div class="stats-bar"><div class="stats-inner"><div class="stat">🔥 <strong id="deal-count">0</strong> deals</div><div class="stat">⏱️ Updated <strong id="last-update">just now</strong></div><div class="stat">🛒 Amazon, Flipkart & more</div><div class="visitor-badge">👁️ <span id="visitor-count">...</span> visitors today</div></div></div><div class="page-body"><aside class="sidebar" id="about"><div class="sidebar-card"><h3>⚡ Why Us?</h3><div class="feature-item"><div class="feature-icon-sm">⚡</div><div><h4>Updated Every 5 Min</h4><p>Never miss a flash sale or lightning deal</p></div></div><div class="feature-item"><div class="feature-icon-sm">🏪</div><div><h4>10+ Sources</h4><p>Amazon, Flipkart, Myntra, Ajio & more</p></div></div><div class="feature-item"><div class="feature-icon-sm">💯</div><div><h4>100% Free</h4><p>No signup, no spam, just deals</p></div></div><div class="feature-item"><div class="feature-icon-sm">📲</div><div><h4>Telegram Alerts</h4><p>Instant notifications on your phone</p></div></div><div class="feature-item"><div class="feature-icon-sm">🤖</div><div><h4>AI Powered</h4><p>Smart deal detection & filtering</p></div></div></div><div class="sidebar-card"><h3>🤔 About Us</h3><p class="about-text">Crazy Online Deals is India's fastest deal aggregator. We hunt the best discounts from Amazon India, Flipkart, Myntra, Ajio and dozens of other stores so you don't have to.</p><p class="about-text" style="margin-top:8px;">Our affiliate links help us keep this service free for everyone.</p></div><div class="sidebar-card" style="background: linear-gradient(135deg, #0F2027, #203A43); border-color: rgba(34,158,217,0.3);"><h3 style="color:#229ED9;">📲 Get Alerts!</h3><p class="about-text" style="margin-bottom:12px;">Join our Telegram channel for instant deal notifications!</p><a href="https://t.me/hugediscountshop" target="_blank" style="display:block; text-align:center; background:#229ED9; color:white; text-decoration:none; font-weight:800; font-size:13px; padding:10px; border-radius:10px;">
 ✈️ @hugediscountshop
@@ -568,6 +598,18 @@ btn.classList.add('active');
 const filtered = type === 'all' ? allDeals
 : allDeals.filter(d => getStore(d.text||'', d.url||'') === type);
 renderDeals(filtered);
+}
+function searchDeals(query) {
+const q = query.toLowerCase().trim();
+if (!q) { renderDeals(allDeals); return; }
+const filtered = allDeals.filter(d => {
+  const text = cleanTitle(d.text || '').toLowerCase();
+  return text.includes(q);
+});
+renderDeals(filtered);
+// Update count
+document.getElementById('deal-count').textContent =
+  filtered.length + (filtered.length < allDeals.length ? ' found' : '');
 }
 async function loadDeals() {
 try {
