@@ -521,7 +521,11 @@ def groq_quality_check(text, affiliate_url):
 # ─────────────────────────────────────────────────────────────────────────────
 
 def post_photo_bytes(chat_id, img_bytes, caption, ctype='image/jpeg'):
-    """Send image bytes — for Telethon-downloaded photos."""
+    """
+    Send image bytes via Bot API.
+    Returns (ok, telegram_image_url) where telegram_image_url is a
+    permanent public URL from Telegram CDN — perfect for website display.
+    """
     try:
         clean_cap = re.sub(r'<[^>]+>', '', caption)[:1024]
         ext = 'jpg' if 'jpeg' in ctype else ctype.split('/')[-1]
@@ -533,12 +537,35 @@ def post_photo_bytes(chat_id, img_bytes, caption, ctype='image/jpeg'):
         )
         if r.status_code != 200:
             print(f"    sendPhoto(bytes) error: {r.text[:120]}")
-        return r.status_code == 200, r.text
+            return False, ''
+
+        # Extract Telegram's own file URL — permanent, public, no blocking
+        # This is the BEST image URL for the website
+        tg_img_url = ''
+        try:
+            resp = r.json()
+            if resp.get('ok'):
+                photo = resp['result']['photo']
+                # Get largest size (last in array)
+                file_id = photo[-1]['file_id']
+                # Get the file path
+                fp = requests.get(
+                    f"https://api.telegram.org/bot{BOT_TOKEN}/getFile",
+                    params={'file_id': file_id}, timeout=8
+                ).json()
+                file_path = fp.get('result', {}).get('file_path', '')
+                if file_path:
+                    tg_img_url = f"https://api.telegram.org/file/bot{BOT_TOKEN}/{file_path}"
+                    print(f"    📷 Telegram URL: {tg_img_url[:70]}")
+        except Exception as e:
+            print(f"    📷 could not extract Telegram URL: {e}")
+
+        return True, tg_img_url
     except Exception as e:
-        return False, str(e)
+        return False, ''
 
 def post_photo_url(chat_id, image_url, caption):
-    """Send image by URL — Telegram's servers fetch it (not blocked like GH Actions)."""
+    """Send image by URL — Telegram's servers fetch it directly."""
     try:
         clean_cap = re.sub(r'<[^>]+>', '', caption)[:1024]
         r = requests.post(
@@ -548,9 +575,28 @@ def post_photo_url(chat_id, image_url, caption):
         )
         if r.status_code != 200:
             print(f"    sendPhoto(url) error: {r.text[:120]}")
-        return r.status_code == 200, r.text
+
+        # Also try to extract Telegram file URL from response
+        tg_img_url = ''
+        try:
+            resp = r.json()
+            if resp.get('ok'):
+                photo = resp['result']['photo']
+                file_id = photo[-1]['file_id']
+                fp = requests.get(
+                    f"https://api.telegram.org/bot{BOT_TOKEN}/getFile",
+                    params={'file_id': file_id}, timeout=8
+                ).json()
+                file_path = fp.get('result', {}).get('file_path', '')
+                if file_path:
+                    tg_img_url = f"https://api.telegram.org/file/bot{BOT_TOKEN}/{file_path}"
+                    print(f"    📷 Telegram URL: {tg_img_url[:70]}")
+        except Exception:
+            pass
+
+        return r.status_code == 200, tg_img_url
     except Exception as e:
-        return False, str(e)
+        return False, ''  
 
 def post_text(chat_id, text):
     try:
@@ -563,9 +609,9 @@ def post_text(chat_id, text):
         )
         if r.status_code != 200:
             print(f"    sendMessage error: {r.text[:100]}")
-        return r.status_code == 200, r.text
+        return r.status_code == 200, ''
     except Exception as e:
-        return False, str(e)
+        return False, ''  
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -732,23 +778,29 @@ async def run():
                     print(f"    img: bytes={'yes '+str(len(img_bytes)//1024)+'KB' if img_bytes else 'no'}  url={img_saved[:50] if img_saved else 'none'}")
 
                     # Post
-                    ok_post = False
-                    resp    = ''
+                    ok_post  = False
+                    tg_url   = ''  # Telegram CDN URL — best for website
 
                     if img_bytes:
-                        ok_post, resp = post_photo_bytes(chat_id, img_bytes, final_text)
+                        ok_post, tg_url = post_photo_bytes(chat_id, img_bytes, final_text)
                         if not ok_post:
-                            print(f"    sendPhoto(bytes) failed: {resp[:80]}")
-                            ok_post, resp = post_text(chat_id, final_text)
+                            print(f"    sendPhoto(bytes) failed, trying text")
+                            ok_post, _ = post_text(chat_id, final_text)
 
                     elif real_img_url:
-                        ok_post, resp = post_photo_url(chat_id, real_img_url, final_text)
+                        ok_post, tg_url = post_photo_url(chat_id, real_img_url, final_text)
                         if not ok_post:
-                            print(f"    sendPhoto(url) failed: {resp[:80]}")
-                            ok_post, resp = post_text(chat_id, final_text)
+                            print(f"    sendPhoto(url) failed, trying text")
+                            ok_post, _ = post_text(chat_id, final_text)
 
                     else:
-                        ok_post, resp = post_text(chat_id, final_text)
+                        ok_post, _ = post_text(chat_id, final_text)
+
+                    # Use Telegram CDN URL as website image if we got one
+                    # This is always publicly accessible — no blocking issues
+                    if tg_url:
+                        img_saved = tg_url
+                        print(f"    📷 website img: Telegram CDN")
 
                     if ok_post:
                         mode = '📷 bytes' if img_bytes else ('📷 url' if real_img_url else '📝 text')
