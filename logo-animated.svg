@@ -1,14 +1,14 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 90" width="900" height="90">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 110" width="900" height="110">
   <defs>
     <style>
       .crazy {
         font-family: 'Arial Black', sans-serif;
         font-weight: 900;
         fill: white;
-        font-size: 38px;
+        font-size: 36px;
         letter-spacing: 3px;
         animation: crazy-shake 5s ease-in-out infinite;
-        transform-origin: 300px 45px;
+        transform-origin: 300px 58px;
       }
       @keyframes crazy-shake {
         0%,85%,100% { transform: translateX(0) rotate(0deg); }
@@ -21,7 +21,7 @@
         font-family: 'Arial Black', sans-serif;
         font-weight: 900;
         fill: #00D4FF;
-        font-size: 38px;
+        font-size: 36px;
         letter-spacing: 3px;
         animation: cyan-glow 2s ease-in-out infinite;
       }
@@ -29,7 +29,7 @@
         font-family: 'Arial Black', sans-serif;
         font-weight: 900;
         fill: #00D4FF;
-        font-size: 38px;
+        font-size: 36px;
         letter-spacing: 3px;
         animation: cyan-glow 2s ease-in-out infinite 0.4s;
       }
@@ -39,7 +39,7 @@
       }
       .star {
         animation: star-spin 4s linear infinite;
-        transform-origin: 110px 45px;
+        transform-origin: 110px 55px;
       }
       @keyframes star-spin {
         0% { transform: rotate(0deg) scale(1); }
@@ -48,11 +48,11 @@
       }
       .cart {
         animation: cart-bounce 2.5s ease-in-out infinite;
-        transform-origin: 45px 45px;
+        transform-origin: 45px 55px;
       }
       @keyframes cart-bounce {
         0%,100% { transform: translateY(0); }
-        50% { transform: translateY(-4px); }
+        50% { transform: translateY(-5px); }
       }
       .spark1 { animation: sf1 2s ease-out infinite; }
       .spark2 { animation: sf2 2s ease-out infinite 0.4s; }
@@ -99,55 +99,55 @@
       <stop offset="100%" style="stop-color:rgba(255,107,0,0)"/>
     </linearGradient>
     <clipPath id="clip">
-      <rect width="900" height="90" rx="12"/>
+      <rect width="900" height="110" rx="0"/>
     </clipPath>
   </defs>
 
   <g clip-path="url(#clip)">
-    <rect width="900" height="90" fill="url(#bg)"/>
-    <rect class="shine" x="0" y="0" width="150" height="90" fill="white"/>
-    <rect x="0" y="87" width="900" height="3" fill="#FF6B00" opacity="0.8"/>
-    <rect x="0" y="0" width="900" height="2" fill="#FF6B00" opacity="0.4"/>
+    <rect width="900" height="110" fill="url(#bg)"/>
+    <rect class="shine" x="0" y="0" width="150" height="110" fill="white"/>
+    <rect x="0" y="106" width="900" height="4" fill="#FF6B00" opacity="0.8"/>
+    <rect x="0" y="0" width="900" height="2" fill="#FF6B00" opacity="0.3"/>
 
     <!-- Cart icon -->
     <g class="cart">
-      <path d="M20 25 L28 35 L55 35" fill="none" stroke="white" stroke-width="4" stroke-linecap="round"/>
-      <path d="M28 35 L33 56 L55 56 L60 35 Z" fill="none" stroke="white" stroke-width="3.5" stroke-linejoin="round"/>
-      <circle cx="36" cy="63" r="4" fill="white"/>
-      <circle cx="53" cy="63" r="4" fill="white"/>
+      <path d="M18 30 L27 42 L55 42" fill="none" stroke="white" stroke-width="4" stroke-linecap="round"/>
+      <path d="M27 42 L33 64 L55 64 L61 42 Z" fill="none" stroke="white" stroke-width="3.5" stroke-linejoin="round"/>
+      <circle cx="36" cy="72" r="4.5" fill="white"/>
+      <circle cx="54" cy="72" r="4.5" fill="white"/>
     </g>
 
     <!-- Divider -->
-    <rect x="78" y="12" width="1.5" height="66" fill="url(#divider)"/>
+    <rect x="78" y="18" width="1.5" height="74" fill="url(#divider)"/>
 
     <!-- Star burst -->
     <g class="star">
-      <polygon points="110,25 115,38 129,38 118,47 123,60 110,51 97,60 102,47 91,38 105,38"
+      <polygon points="110,28 116,44 133,44 120,54 126,70 110,60 94,70 100,54 87,44 104,44"
                fill="url(#starGrad)"/>
     </g>
 
     <!-- Sparks -->
-    <circle class="spark1" cx="100" cy="30" r="4" fill="#FFD600"/>
-    <circle class="spark2" cx="121" cy="27" r="3" fill="#FF6B00"/>
-    <circle class="spark3" cx="90" cy="38" r="3" fill="#FFD600"/>
-    <circle class="spark4" cx="130" cy="35" r="3" fill="#FF9900"/>
-    <circle class="spark5" cx="107" cy="22" r="3" fill="#FFEE00"/>
-    <circle class="spark6" cx="114" cy="20" r="3" fill="#FF6B00"/>
+    <circle class="spark1" cx="100" cy="34" r="4" fill="#FFD600"/>
+    <circle class="spark2" cx="122" cy="30" r="3" fill="#FF6B00"/>
+    <circle class="spark3" cx="88" cy="44" r="3" fill="#FFD600"/>
+    <circle class="spark4" cx="132" cy="42" r="3" fill="#FF9900"/>
+    <circle class="spark5" cx="107" cy="24" r="3" fill="#FFEE00"/>
+    <circle class="spark6" cx="115" cy="22" r="3" fill="#FF6B00"/>
 
     <!-- Divider -->
-    <rect x="140" y="12" width="1.5" height="66" fill="url(#divider)"/>
+    <rect x="148" y="18" width="1.5" height="74" fill="url(#divider)"/>
 
     <!-- CRAZY -->
-    <text class="crazy" x="160" y="56">CRAZY</text>
+    <text class="crazy" x="165" y="68">CRAZY</text>
 
     <!-- ONLINE -->
-    <text class="online" x="390" y="56">ONLINE</text>
+    <text class="online" x="390" y="68">ONLINE</text>
 
     <!-- DEALS -->
-    <text class="deals" x="650" y="56">DEALS</text>
+    <text class="deals" x="650" y="68">DEALS</text>
 
     <!-- Live dot -->
-    <circle class="live-dot" cx="868" cy="18" r="5" fill="#FF2D2D"/>
-    <text x="840" y="22" font-family="Arial" font-size="9" fill="#FF2D2D" font-weight="bold">LIVE</text>
+    <circle class="live-dot" cx="872" cy="22" r="5" fill="#FF2D2D"/>
+    <text x="843" y="26" font-family="Arial" font-size="9" fill="#FF2D2D" font-weight="bold">LIVE</text>
   </g>
 </svg>
