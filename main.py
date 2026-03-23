@@ -800,6 +800,7 @@ async def run():
                     # Post
                     ok_post = False
                     tg_url  = ''
+                    resp    = ''  # initialize to avoid UnboundLocalError
 
                     if real_img_url:
                         # Send image by URL (Amazon Associates / scraped)
@@ -840,8 +841,9 @@ async def run():
                 print(f"\n  scanned={count}  posted={found}")
 
             except Exception as e:
+                import traceback as tb
                 print(f"  ❌ {channel}: {e}")
-                traceback.print_exc()
+                tb.print_exc()
 
             state[channel] = new_last_id
 
