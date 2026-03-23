@@ -1,0 +1,36 @@
+name: health-monitor
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'  # every 30 minutes
+  workflow_dispatch:         # manual trigger anytime
+
+permissions:
+  contents: read
+  actions: write             # needed to trigger deal_bot workflow
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install deps
+        run: pip install requests
+
+      - name: Run health monitor
+        env:
+          A3: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          A5: ${{ secrets.YOUR_CHANNEL_USERNAME }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python monitor.py
