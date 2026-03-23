@@ -411,6 +411,21 @@ nav { padding-right: 100px; }
 .deals-grid { grid-template-columns: 1fr; }
 .logo { font-size: 1.4rem; }
 }
+
+.card-img-placeholder {
+height: 60px;
+display: flex;
+align-items: center;
+justify-content: center;
+border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.card-img-placeholder span {
+color: rgba(255,255,255,0.85);
+font-size: 12px;
+font-weight: 700;
+letter-spacing: 1px;
+text-transform: uppercase;
+}
 </style></head><body><a href="https://t.me/hugediscountshop" target="_blank" class="tg-float">
 ✈️ Join Telegram
 </a><header>
@@ -484,12 +499,15 @@ return Math.floor(diff/86400) + 'd ago';
 }
 function cleanTitle(text) {
 return (text || '')
-.replace(/\[.*?\]\(https?:\/\/[^)]+\)/g, '')
-.replace(/https?:\/\/\S+/g, '')
-.replace(/🔗\s*/g, '')
-.replace(/🛒 Deals by @\S+/g, '')
+.replace(/\[.*?\]\(https?:\/\/[^)]+\)/g, '')   // [text](url) markdown
+.replace(/https?:\/\/\S+/g, '')                  // plain URLs
+.replace(/🔗\s*/g, '')                            // link emoji
+.replace(/🛒 Deals by @\S+/g, '')                 // channel credit
 .replace(/\*\*/g, '')
+.replace(/[\w\s\.]{1,25} : /g, ' ')              // "Fiama : " "Palmolive : " orphan labels
+.replace(/[\w\s\.]{1,25}:\s*$/gm, '')            // "More:" at end of line
 .replace(/\s{2,}/g, ' ')
+.replace(/^\s*[\r\n]/gm, '')                      // empty lines
 .trim().substring(0, 120) || 'Hot Deal!';
 }
 // ── Render ──
@@ -501,18 +519,30 @@ return;
 }
 grid.innerHTML = deals.map((deal, i) => {
 const store = getStore(deal.text||'', deal.url||'');
-// Image: Telegraph URL (real product photo) or Amazon CDN URL
-// If URL fails to load, try Amazon CDN as fallback before hiding
-const imageHtml = deal.image ? `
-<div class="card-img-wrap">
+// Image display: show real photo if available, else store-colored placeholder
+let imageHtml = '';
+if (deal.image) {
+  imageHtml = `<div class="card-img-wrap">
   <img src="${deal.image}"
        alt="Product"
        loading="lazy"
-       onerror="this.tryAlt ? this.closest('.card-img-wrap').style.display='none' : (this.tryAlt=true, this.src='${deal.image.includes('telegra.ph') && deal.url ? 'https://m.media-amazon.com/images/I/' + (deal.url.match(/\/dp\/([A-Z0-9]{10})/) || ['',''])[1] + '._SL500_.jpg' : ''}'  || (this.closest('.card-img-wrap').style.display='none'))"
+       onerror="this.closest('.card-img-wrap').remove()"
        onmouseover="this.style.transform='scale(1.05)'"
        onmouseout="this.style.transform='scale(1)'"
   />
-</div>` : '';
+</div>`;
+} else {
+  // No image: show store-colored placeholder banner
+  const storeColors = {
+    amazon: '#FF9900', flipkart: '#2874F0', myntra: '#FF3F6C',
+    ajio: '#1a1a1a', meesho: '#F16565', other: '#553C9A'
+  };
+  const bg = storeColors[store] || storeColors.other;
+  const storeLabel = store.charAt(0).toUpperCase() + store.slice(1);
+  imageHtml = `<div class="card-img-placeholder" style="background:${bg}">
+    <span>${storeLabel} Deal</span>
+  </div>`;
+}
 return `
 <div class="deal-card" style="animation-delay:${i * 0.04}s">
 ${imageHtml}
