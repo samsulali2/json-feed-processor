@@ -1,153 +1,165 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 110" width="900" height="110">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 100" width="1000" height="100">
   <defs>
     <style>
       .crazy {
-        font-family: 'Arial Black', sans-serif;
-        font-weight: 900;
-        fill: white;
-        font-size: 36px;
-        letter-spacing: 3px;
-        animation: crazy-shake 5s ease-in-out infinite;
-        transform-origin: 300px 58px;
+        font-family: 'Arial Black', Impact, sans-serif;
+        font-weight: 900; fill: white;
+        font-size: 46px; letter-spacing: 4px;
+        animation: crazy-shake 6s ease-in-out infinite;
+        transform-origin: 290px 62px;
       }
       @keyframes crazy-shake {
-        0%,85%,100% { transform: translateX(0) rotate(0deg); }
-        87% { transform: translateX(-3px) rotate(-1deg); }
-        90% { transform: translateX(3px) rotate(1deg); }
-        93% { transform: translateX(-2px) rotate(-0.5deg); }
-        96% { transform: translateX(2px) rotate(0.5deg); }
+        0%,88%,100% { transform: translateX(0) rotate(0deg); }
+        90% { transform: translateX(-4px) rotate(-1.5deg); }
+        93% { transform: translateX(4px) rotate(1.5deg); }
+        96% { transform: translateX(-2px) rotate(-0.5deg); }
+        98% { transform: translateX(2px) rotate(0.5deg); }
       }
       .online {
-        font-family: 'Arial Black', sans-serif;
-        font-weight: 900;
-        fill: #00D4FF;
-        font-size: 36px;
-        letter-spacing: 3px;
-        animation: cyan-glow 2s ease-in-out infinite;
+        font-family: 'Arial Black', Impact, sans-serif;
+        font-weight: 900; fill: #00D4FF;
+        font-size: 46px; letter-spacing: 4px;
+        animation: cyan-glow 2.5s ease-in-out infinite;
       }
       .deals {
-        font-family: 'Arial Black', sans-serif;
-        font-weight: 900;
-        fill: #00D4FF;
-        font-size: 36px;
-        letter-spacing: 3px;
-        animation: cyan-glow 2s ease-in-out infinite 0.4s;
+        font-family: 'Arial Black', Impact, sans-serif;
+        font-weight: 900; fill: #00D4FF;
+        font-size: 46px; letter-spacing: 4px;
+        animation: cyan-glow 2.5s ease-in-out infinite 0.5s;
       }
       @keyframes cyan-glow {
-        0%,100% { fill: #00D4FF; filter: drop-shadow(0 0 3px rgba(0,212,255,0.3)); }
-        50% { fill: #00FFFF; filter: drop-shadow(0 0 12px rgba(0,255,255,0.9)); }
+        0%,100% { fill: #00D4FF; filter: drop-shadow(0 0 4px rgba(0,212,255,0.4)); }
+        50% { fill: #40FFFF; filter: drop-shadow(0 0 18px rgba(0,255,255,1)); }
       }
-      .star {
-        animation: star-spin 4s linear infinite;
-        transform-origin: 110px 55px;
-      }
-      @keyframes star-spin {
-        0% { transform: rotate(0deg) scale(1); }
-        50% { transform: rotate(180deg) scale(1.3); }
-        100% { transform: rotate(360deg) scale(1); }
-      }
-      .cart {
-        animation: cart-bounce 2.5s ease-in-out infinite;
-        transform-origin: 45px 55px;
+      /* Cart body bounce */
+      .cart-body {
+        animation: cart-bounce 2.8s ease-in-out infinite;
+        transform-origin: 42px 58px;
       }
       @keyframes cart-bounce {
-        0%,100% { transform: translateY(0); }
-        50% { transform: translateY(-5px); }
+        0%,100% { transform: translateY(0) rotate(0deg); }
+        30% { transform: translateY(-6px) rotate(-3deg); }
+        60% { transform: translateY(-3px) rotate(2deg); }
       }
-      .spark1 { animation: sf1 2s ease-out infinite; }
-      .spark2 { animation: sf2 2s ease-out infinite 0.4s; }
-      .spark3 { animation: sf3 2s ease-out infinite 0.8s; }
-      .spark4 { animation: sf4 2s ease-out infinite 1.2s; }
-      .spark5 { animation: sf5 2s ease-out infinite 1.6s; }
-      .spark6 { animation: sf6 2s ease-out infinite 0.2s; }
-      @keyframes sf1 { 0%{transform:translate(0,0);opacity:1;} 100%{transform:translate(-30px,-25px);opacity:0;} }
-      @keyframes sf2 { 0%{transform:translate(0,0);opacity:1;} 100%{transform:translate(30px,-28px);opacity:0;} }
-      @keyframes sf3 { 0%{transform:translate(0,0);opacity:1;} 100%{transform:translate(-35px,-10px);opacity:0;} }
-      @keyframes sf4 { 0%{transform:translate(0,0);opacity:1;} 100%{transform:translate(35px,-12px);opacity:0;} }
-      @keyframes sf5 { 0%{transform:translate(0,0);opacity:1;} 100%{transform:translate(-15px,-35px);opacity:0;} }
-      @keyframes sf6 { 0%{transform:translate(0,0);opacity:1;} 100%{transform:translate(15px,-35px);opacity:0;} }
-      .shine {
-        animation: shine-sweep 4s linear infinite;
+      /* Items falling into cart */
+      .item1 { animation: fall1 2.8s ease-in infinite; }
+      .item2 { animation: fall2 2.8s ease-in infinite 0.4s; }
+      .item3 { animation: fall3 2.8s ease-in infinite 0.8s; }
+      @keyframes fall1 {
+        0%   { transform: translate(0,0); opacity:0; }
+        10%  { opacity:1; }
+        40%  { transform: translate(4px, 22px); opacity:1; }
+        50%,100% { transform: translate(4px, 22px); opacity:0; }
       }
-      @keyframes shine-sweep {
-        0% { transform: translateX(-900px) skewX(-15deg); opacity:0; }
-        20% { opacity:0.05; }
-        50% { transform: translateX(900px) skewX(-15deg); opacity:0; }
-        100% { transform: translateX(900px) skewX(-15deg); opacity:0; }
+      @keyframes fall2 {
+        0%   { transform: translate(0,0); opacity:0; }
+        10%  { opacity:1; }
+        40%  { transform: translate(-3px, 20px); opacity:1; }
+        50%,100% { transform: translate(-3px, 20px); opacity:0; }
       }
-      .live-dot {
-        animation: live-blink 1.2s ease-in-out infinite;
+      @keyframes fall3 {
+        0%   { transform: translate(0,0); opacity:0; }
+        10%  { opacity:1; }
+        40%  { transform: translate(1px, 18px); opacity:1; }
+        50%,100% { transform: translate(1px, 18px); opacity:0; }
       }
-      @keyframes live-blink {
-        0%,100% { opacity:1; }
-        50% { opacity:0.2; }
+      /* Star spin */
+      .star { animation: star-spin 5s linear infinite; transform-origin: 118px 50px; }
+      @keyframes star-spin {
+        0% { transform: rotate(0deg) scale(1); }
+        50% { transform: rotate(180deg) scale(1.25); }
+        100% { transform: rotate(360deg) scale(1); }
       }
+      /* Sparks */
+      .sp1{animation:sp1a 2.2s ease-out infinite;}
+      .sp2{animation:sp2a 2.2s ease-out infinite 0.35s;}
+      .sp3{animation:sp3a 2.2s ease-out infinite 0.7s;}
+      .sp4{animation:sp4a 2.2s ease-out infinite 1.1s;}
+      @keyframes sp1a{0%{transform:translate(0,0);opacity:1;}100%{transform:translate(-28px,-28px);opacity:0;}}
+      @keyframes sp2a{0%{transform:translate(0,0);opacity:1;}100%{transform:translate(28px,-28px);opacity:0;}}
+      @keyframes sp3a{0%{transform:translate(0,0);opacity:1;}100%{transform:translate(-18px,-36px);opacity:0;}}
+      @keyframes sp4a{0%{transform:translate(0,0);opacity:1;}100%{transform:translate(18px,-36px);opacity:0;}}
+      /* Shine sweep */
+      .shine { animation: shine 5s linear infinite; }
+      @keyframes shine {
+        0%   { transform: translateX(-1100px) skewX(-18deg); opacity:0; }
+        15%  { opacity:0.06; }
+        55%  { transform: translateX(1100px) skewX(-18deg); opacity:0; }
+        100% { transform: translateX(1100px) skewX(-18deg); opacity:0; }
+      }
+      /* Live dot */
+      .live-dot { animation: blink 1.2s ease-in-out infinite; }
+      @keyframes blink { 0%,100%{opacity:1;} 50%{opacity:0.15;} }
     </style>
-
     <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" style="stop-color:#0F0C29"/>
-      <stop offset="40%" style="stop-color:#16213E"/>
-      <stop offset="100%" style="stop-color:#0F2027"/>
+      <stop offset="0%"   style="stop-color:#0a0820"/>
+      <stop offset="35%"  style="stop-color:#141b3a"/>
+      <stop offset="65%"  style="stop-color:#141b3a"/>
+      <stop offset="100%" style="stop-color:#0a0820"/>
     </linearGradient>
-    <linearGradient id="starGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#FFD600"/>
-      <stop offset="100%" style="stop-color:#FF6B00"/>
+    <linearGradient id="starG" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%"   style="stop-color:#FFD600"/>
+      <stop offset="100%" style="stop-color:#FF8C00"/>
     </linearGradient>
-    <linearGradient id="divider" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" style="stop-color:rgba(255,107,0,0)"/>
-      <stop offset="50%" style="stop-color:rgba(255,107,0,0.8)"/>
+    <linearGradient id="div" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%"   style="stop-color:rgba(255,107,0,0)"/>
+      <stop offset="50%"  style="stop-color:rgba(255,107,0,0.7)"/>
       <stop offset="100%" style="stop-color:rgba(255,107,0,0)"/>
     </linearGradient>
-    <clipPath id="clip">
-      <rect width="900" height="110" rx="0"/>
-    </clipPath>
+    <clipPath id="clip"><rect width="1000" height="100" rx="0"/></clipPath>
   </defs>
 
   <g clip-path="url(#clip)">
-    <rect width="900" height="110" fill="url(#bg)"/>
-    <rect class="shine" x="0" y="0" width="150" height="110" fill="white"/>
-    <rect x="0" y="106" width="900" height="4" fill="#FF6B00" opacity="0.8"/>
-    <rect x="0" y="0" width="900" height="2" fill="#FF6B00" opacity="0.3"/>
+    <rect width="1000" height="100" fill="url(#bg)"/>
+    <rect class="shine" x="0" y="0" width="180" height="100" fill="white"/>
+    <!-- Bottom accent bar -->
+    <rect x="0" y="96" width="1000" height="4" fill="#FF6B00" opacity="0.9"/>
+    <rect x="0" y="0"  width="1000" height="2" fill="#FF6B00" opacity="0.25"/>
 
-    <!-- Cart icon -->
-    <g class="cart">
-      <path d="M18 30 L27 42 L55 42" fill="none" stroke="white" stroke-width="4" stroke-linecap="round"/>
-      <path d="M27 42 L33 64 L55 64 L61 42 Z" fill="none" stroke="white" stroke-width="3.5" stroke-linejoin="round"/>
-      <circle cx="36" cy="72" r="4.5" fill="white"/>
-      <circle cx="54" cy="72" r="4.5" fill="white"/>
+    <!-- Cart group -->
+    <g class="cart-body">
+      <!-- Handle -->
+      <path d="M16 28 L26 40 L62 40" fill="none" stroke="white" stroke-width="4.5" stroke-linecap="round"/>
+      <!-- Body -->
+      <path d="M26 40 L32 66 L60 66 L66 40 Z" fill="none" stroke="white" stroke-width="4" stroke-linejoin="round"/>
+      <!-- Wheels -->
+      <circle cx="36" cy="74" r="5" fill="white"/>
+      <circle cx="57" cy="74" r="5" fill="white"/>
+      <!-- Items in cart (static base) -->
+      <rect x="34" y="50" width="8" height="10" rx="2" fill="#FFD600" opacity="0.7"/>
+      <rect x="45" y="48" width="8" height="12" rx="2" fill="#FF6B00" opacity="0.7"/>
     </g>
 
-    <!-- Divider -->
-    <rect x="78" y="18" width="1.5" height="74" fill="url(#divider)"/>
+    <!-- Falling items into cart -->
+    <rect class="item1" x="38" y="30" width="7" height="9" rx="2" fill="#FFD600"/>
+    <rect class="item2" x="46" y="28" width="7" height="9" rx="2" fill="#FF3D3D"/>
+    <rect class="item3" x="42" y="32" width="7" height="8" rx="2" fill="#00D4FF"/>
 
-    <!-- Star burst -->
+    <!-- Divider -->
+    <rect x="82" y="14" width="1.5" height="72" fill="url(#div)"/>
+
+    <!-- Star -->
     <g class="star">
-      <polygon points="110,28 116,44 133,44 120,54 126,70 110,60 94,70 100,54 87,44 104,44"
-               fill="url(#starGrad)"/>
+      <polygon points="118,20 125,40 146,40 130,52 137,72 118,60 99,72 106,52 90,40 111,40"
+               fill="url(#starG)"/>
     </g>
 
-    <!-- Sparks -->
-    <circle class="spark1" cx="100" cy="34" r="4" fill="#FFD600"/>
-    <circle class="spark2" cx="122" cy="30" r="3" fill="#FF6B00"/>
-    <circle class="spark3" cx="88" cy="44" r="3" fill="#FFD600"/>
-    <circle class="spark4" cx="132" cy="42" r="3" fill="#FF9900"/>
-    <circle class="spark5" cx="107" cy="24" r="3" fill="#FFEE00"/>
-    <circle class="spark6" cx="115" cy="22" r="3" fill="#FF6B00"/>
+    <!-- Sparks around star -->
+    <circle class="sp1" cx="108" cy="26" r="4" fill="#FFD600"/>
+    <circle class="sp2" cx="130" cy="24" r="3.5" fill="#FF6B00"/>
+    <circle class="sp3" cx="100" cy="40" r="3" fill="#FFE566"/>
+    <circle class="sp4" cx="138" cy="38" r="3" fill="#FF9900"/>
 
     <!-- Divider -->
-    <rect x="148" y="18" width="1.5" height="74" fill="url(#divider)"/>
+    <rect x="158" y="14" width="1.5" height="72" fill="url(#div)"/>
 
-    <!-- CRAZY -->
-    <text class="crazy" x="165" y="68">CRAZY</text>
+    <!-- Text -->
+    <text class="crazy"  x="172" y="70">CRAZY</text>
+    <text class="online" x="420" y="70">ONLINE</text>
+    <text class="deals"  x="700" y="70">DEALS</text>
 
-    <!-- ONLINE -->
-    <text class="online" x="390" y="68">ONLINE</text>
-
-    <!-- DEALS -->
-    <text class="deals" x="650" y="68">DEALS</text>
-
-    <!-- Live dot -->
-    <circle class="live-dot" cx="872" cy="22" r="5" fill="#FF2D2D"/>
-    <text x="843" y="26" font-family="Arial" font-size="9" fill="#FF2D2D" font-weight="bold">LIVE</text>
+    <!-- LIVE indicator -->
+    <circle class="live-dot" cx="960" cy="22" r="6" fill="#FF2D2D"/>
+    <text x="930" y="26" font-family="Arial" font-size="10" fill="#FF2D2D" font-weight="bold" letter-spacing="1">LIVE</text>
   </g>
 </svg>
