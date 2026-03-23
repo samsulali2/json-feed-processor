@@ -1,9 +1,7 @@
 name: data-sync
 
 on:
-  workflow_dispatch:
-  schedule:
-    - cron: '*/5 * * * *'
+  workflow_dispatch:  # triggered by cron-job.org every 5 min
 
 permissions:
   contents: write
