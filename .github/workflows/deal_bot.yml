@@ -29,9 +29,6 @@ jobs:
       - name: Install dependencies
         run: pip install telethon requests feedparser
 
-      - name: Backfill missing images in deals.json
-        run: python backfill_images.py || true
-
       - name: Run bot
         env:
           A1: ${{ secrets.TELEGRAM_API_ID }}
@@ -43,9 +40,7 @@ jobs:
           A7: ${{ secrets.AMAZON_AFFILIATE_ID }}
           A8: ${{ secrets.CUELINKS_API_KEY }}
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
-        run: |
-          python backfill_images.py || true
-          python main.py
+        run: python main.py
 
       # Commit deals.json (website) + last_seen.json (state) back to repo
       # Pull latest first to avoid push conflicts from concurrent runs
