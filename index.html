@@ -463,6 +463,28 @@ font-weight: 700;
 letter-spacing: 1px;
 text-transform: uppercase;
 }
+
+/* ── Deal card image — fixed 160px box, product fits inside ── */
+.card-img-wrap {
+  width: 100%;
+  height: 160px;
+  overflow: hidden;
+  background: #fff;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.card-img-wrap img {
+  width: 100%;
+  height: 160px;
+  object-fit: contain;
+  object-position: center;
+  padding: 10px;
+  display: block;
+  flex-shrink: 0;
+}
 </style></head><body><header>
   <!-- Row 1: Telegram btn (left) | Logo SVG (center) | Search (right) -->
   <div class="header-logo-row">
@@ -566,9 +588,8 @@ if (deal.image) {
   <img src="${deal.image}"
        alt="Product"
        loading="lazy"
+       style="width:100%;height:160px;object-fit:contain;object-position:center;padding:10px;background:#fff;display:block;"
        onerror="this.closest('.card-img-wrap').remove()"
-       onmouseover="this.style.transform='scale(1.05)'"
-       onmouseout="this.style.transform='scale(1)'"
   />
 </div>`;
 } else {
