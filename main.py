@@ -95,7 +95,12 @@ BROWSE_HEADERS = {
 # ─────────────────────────────────────────────────────────────────────────────
 
 def extract_text_urls(text):
-    """Extract URLs. Filters desidime 'X : https://...' table artifacts."""
+    """
+    Extract URLs from text.
+    Filters ONLY true single-letter table artifacts like "a : https://..."
+    where the single letter is an isolated column header (preceded by space/start).
+    Does NOT filter product labels like "Fiama : https://..." or "More : https://..."
+    """
     if not text:
         return []
     results = []
@@ -104,9 +109,12 @@ def extract_text_urls(text):
         url = m.group().rstrip('.,;:!?)>')
         if not url:
             continue
-        before4 = text[max(0, pos - 4):pos]
-        if re.match(r'^[a-zA-Z] : $', before4):
+        before = text[:pos]
+        # Only skip truly isolated single-letter column headers: "X : https://"
+        # where X is a single letter preceded by whitespace or start of string
+        if re.search(r'(?:^|\s)([a-zA-Z]) : $', before):
             continue
+        # Accept URLs preceded by whitespace or punctuation
         if pos == 0 or text[pos - 1] in ' \t\n\r([,:;=':
             results.append(url)
     return results
@@ -366,9 +374,26 @@ def build_clean_text(msg, affiliate_url):
         if any(sl.startswith(p) for p in NOISE_PREFIXES): continue
         if re.match(r'^#\w', s): continue
         if re.match(r'^@\w', s): continue
+
+        # Strip ALL shortener/source URLs inline from this line
+        # e.g. "Fiama : https://bitli.store/9t" → "Fiama : "
+        line_cleaned = line
+        for u in extract_text_urls(s):
+            if is_junk_url(u):
+                line_cleaned = line_cleaned.replace(u, '')
+
+        s_cleaned = line_cleaned.strip()
+
+        # Skip line if nothing meaningful left after URL removal
+        if not s_cleaned:
+            continue
+
+        # Skip line if it only had junk URLs (original check still useful)
         line_urls = extract_text_urls(s)
-        if line_urls and all(is_junk_url(u) for u in line_urls): continue
-        clean.append(line)
+        if line_urls and all(is_junk_url(u) for u in line_urls):
+            continue
+
+        clean.append(line_cleaned)
     result = re.sub(r'\n{3,}', '\n\n', '\n'.join(clean)).strip()
     result = sanitize_text(result, affiliate_url)
     final = []
