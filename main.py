@@ -21,6 +21,11 @@ from datetime import datetime, timezone
 from telethon import TelegramClient
 from telethon.sessions import StringSession
 from telethon.tl.types import MessageEntityTextUrl, MessageEntityUrl
+try:
+    from feed_scraper import fetch_all_deals as fetch_web_deals
+    WEB_FEEDS_ENABLED = True
+except ImportError:
+    WEB_FEEDS_ENABLED = False
 
 VERSION = "10.0"
 
@@ -738,6 +743,73 @@ async def run():
                 traceback.print_exc()
 
             state[channel] = new_last_id
+
+    # ── Web Feed Sources (RSS) ───────────────────────────────────────────────
+    if WEB_FEEDS_ENABLED:
+        print(f"\n{'─'*55}")
+        print("  [WEB FEEDS] Fetching RSS sources...")
+        try:
+            feed_deals = fetch_web_deals(posted_hashes, max_per_source=8)
+            for feed_msg, feed_source, feed_img, feed_product_url in feed_deals:
+                # Run through same affiliate + checklist pipeline
+                all_urls = extract_all_urls_from_msg(feed_msg)
+                # Also add the product URL directly
+                if feed_product_url and feed_product_url not in all_urls:
+                    all_urls.insert(0, feed_product_url)
+
+                affiliate_url = None
+                product_url   = ''
+                for url in all_urls:
+                    if is_ignorable(url): continue
+                    aff, prod = resolve_to_affiliate(url)
+                    if aff:
+                        affiliate_url = aff
+                        product_url   = prod
+                        break
+
+                if not affiliate_url:
+                    print(f"    [feed] skip {feed_source}: no affiliate URL")
+                    continue
+
+                clean = build_clean_text(feed_msg, affiliate_url)
+                clean, affiliate_url, chk = run_checklist(clean, affiliate_url)
+                if not chk.is_good:
+                    print(f"    [feed] skip {feed_source}: {chk.failed[0]}")
+                    continue
+
+                # Groq advisory
+                if GROQ_API_KEY:
+                    ai_ok, ai_reason = groq_quality_check(clean, affiliate_url)
+                    print(f"    [feed] Groq: {ai_reason}")
+
+                final_text = clean + f"\n\n🛒 Deals by @{YOUR_CHANNEL}"
+
+                # Image: use RSS thumbnail or scrape product page
+                img_saved    = feed_img or ''
+                real_img_url = feed_img or ''
+
+                # Post
+                ok_post = False
+                if real_img_url:
+                    ok_post, resp = post_photo_url(chat_id, real_img_url, final_text)
+                    if not ok_post:
+                        ok_post, resp = post_text(chat_id, final_text)
+                else:
+                    ok_post, resp = post_text(chat_id, final_text)
+
+                if ok_post:
+                    msg_hash = hashlib.md5(feed_msg.text[:200].encode()).hexdigest()[:10]
+                    posted_hashes.add(msg_hash)
+                    deals = add_deal(deals, final_text, affiliate_url, feed_source, img_saved)
+                    total += 1
+                    print(f"    ✅ [feed] POSTED from {feed_source}")
+                    time.sleep(random.uniform(2.0, 3.5))
+                else:
+                    print(f"    ❌ [feed] FAILED from {feed_source}: {resp[:80]}")
+
+        except Exception as e:
+            print(f"  ❌ web feeds error: {e}")
+            import traceback; traceback.print_exc()
 
     save_json(STATE_FILE, state)
     save_json(DEALS_FILE, deals)
