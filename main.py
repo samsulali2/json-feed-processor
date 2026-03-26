@@ -69,7 +69,9 @@ SOURCE_SITE_DOMAINS = [
 CUELINKS_DOMAINS = [
     'flipkart.com', 'myntra.com', 'ajio.com', 'nykaa.com',
     'tatacliq.com', 'shopsy.in', 'meesho.com', 'jiomart.com',
-    'croma.com',
+    'croma.com', 'snapdeal.com', 'bigbasket.com', 'swiggy.com',
+    'zomato.com', 'blinkit.com', 'healthkart.com', 'purplle.com',
+    'firstcry.com', 'pepperfry.com', 'lenskart.com',
 ]
 
 IGNORE_URL_DOMAINS = [
@@ -499,9 +501,9 @@ def run_checklist(text, affiliate_url):
         text = text[:3900] + f"\n\n🔗 {affiliate_url}"
         r.fix("trimmed")
 
-    # 10. Product title
+    # 10. Product title (min 2 meaningful words)
     words = [w for w in text.split('🔗')[0].split() if len(w) > 2]
-    if len(words) < 3:
+    if len(words) < 2:
         r.fail("no product title", f"{len(words)} words"); return text, affiliate_url, r
 
     return text, affiliate_url, r
@@ -820,12 +822,17 @@ async def run():
                     else:
                         ok_post, _ = post_text(chat_id, final_text)
 
-                    # Telegram CDN URL from response = best website image
+                    # Best image for website:
+                    # 1. Telegram CDN URL (if post succeeded) — always accessible
+                    # 2. Amazon Associates URL (img_saved set above) — works in browsers
+                    # 3. Telegraph URL — works in browsers
                     if tg_url:
                         img_saved = tg_url
-                        print(f"    📷 website: Telegram CDN")
+                        print(f"    📷 website: Telegram CDN ✅")
                     elif img_saved:
-                        print(f"    📷 website: {img_saved[:60]}")
+                        print(f"    📷 website: fallback URL ✅ {img_saved[:55]}")
+                    else:
+                        print(f"    📷 website: no image")
 
                     if ok_post:
                         mode = '📷 bytes' if img_bytes else ('📷 url' if real_img_url else '📝 text')
