@@ -44,7 +44,6 @@ background: radial-gradient(ellipse 70% 80% at 50% 0%, rgba(255,107,0,0.06) 0%, 
 pointer-events: none;
 }
 
-/* Row 1: Logo row — Telegram btn left | SVG center | Search right */
 .header-logo-row {
 display: grid;
 grid-template-columns: 200px 1fr 200px;
@@ -88,7 +87,7 @@ object-fit: contain;
 display: block;
 margin: 0 auto;
 }
-/* Search bar — right column */
+
 .header-search {
 justify-self: end;
 display: flex;
@@ -118,7 +117,6 @@ width: 100%;
 .header-search input::placeholder { color: rgba(255,255,255,0.4); }
 .header-search svg { flex-shrink: 0; opacity: 0.5; }
 
-/* Row 2: Tagline row — centered below logo */
 .header-sub-row {
 display: flex;
 align-items: center;
@@ -177,7 +175,6 @@ animation: live-blink 1.2s ease-in-out infinite;
 @keyframes gradient-shift { 0%{background-position:0%;} 100%{background-position:200%;} }
 .logo { display: none; }
 
-/* Mobile responsive */
 @media (max-width: 640px) {
 .header-logo-row {
   grid-template-columns: 1fr;
@@ -452,7 +449,7 @@ nav { padding-right: 100px; }
 /* ── STRICT IMAGE CONTAINER STYLES ── */
 .card-img-wrap {
   width: 100%;
-  height: 160px; /* Fixed height container */
+  height: 160px;
   background: #ffffff;
   border-bottom: 1px solid rgba(255,255,255,0.06);
   display: flex;
@@ -464,14 +461,13 @@ nav { padding-right: 100px; }
 
 .card-img-wrap img {
   width: 100%;
-  height: 100%; /* forces image to strictly obey container limits */
-  object-fit: contain; /* Keeps ratio without zooming/cropping */
+  height: 100%;
+  object-fit: contain;
   object-position: center;
   padding: 10px;
   display: block;
 }
 
-/* Match the exact same height as the wrapper */
 .card-img-placeholder {
   width: 100%;
   height: 160px; 
@@ -566,21 +562,25 @@ nav { padding-right: 100px; }
 <script>
 let allDeals = [];
 
-// ── Visitor counter ──
+// ── Visitor counter (Safeguarded against privacy blockers) ──
 function updateVisitorCount() {
-  const today = new Date().toDateString();
-  const data  = JSON.parse(localStorage.getItem('cod_visitors') || '{"date":"","count":0}');
-  if (data.date !== today) {
-    data.date  = today;
-    data.count = Math.floor(Math.random() * 800) + 200; 
+  try {
+    const today = new Date().toDateString();
+    const data  = JSON.parse(localStorage.getItem('cod_visitors') || '{"date":"","count":0}');
+    if (data.date !== today) {
+      data.date  = today;
+      data.count = Math.floor(Math.random() * 800) + 200; 
+    }
+    const visits = parseInt(localStorage.getItem('cod_visits_' + today) || '0');
+    if (visits === 0) {
+      data.count += Math.floor(Math.random() * 5) + 1;
+      localStorage.setItem('cod_visitors', JSON.stringify(data));
+    }
+    localStorage.setItem('cod_visits_' + today, '1');
+    document.getElementById('visitor-count').textContent = data.count.toLocaleString('en-IN');
+  } catch (err) {
+    document.getElementById('visitor-count').textContent = "---";
   }
-  const visits = parseInt(localStorage.getItem('cod_visits_' + today) || '0');
-  if (visits === 0) {
-    data.count += Math.floor(Math.random() * 5) + 1;
-    localStorage.setItem('cod_visitors', JSON.stringify(data));
-  }
-  localStorage.setItem('cod_visits_' + today, '1');
-  document.getElementById('visitor-count').textContent = data.count.toLocaleString('en-IN');
 }
 updateVisitorCount();
 
@@ -611,5 +611,155 @@ function getStoreBadge(store) {
 
 function timeAgo(ts) {
   if(!ts) return 'recently';
-  const diff = Math.floor((Date.now() - new Date(ts)) / 1000);
-  if (diff < 60
+  const dateObj = new Date(ts);
+  if (isNaN(dateObj)) return 'recently'; // Protection against malformed dates
+  const diff = Math.floor((Date.now() - dateObj) / 1000);
+  if (diff < 60)   return 'just now';
+  if (diff < 3600) return Math.floor(diff/60) + 'm ago';
+  if (diff < 86400)return Math.floor(diff/3600) + 'h ago';
+  return Math.floor(diff/86400) + 'd ago';
+}
+
+function cleanTitle(text) {
+  return (text || '')
+    .replace(/\[.*?\]\(https?:\/\/[^)]+\)/g, '')  
+    .replace(/https?:\/\/\S+/g, '')                  
+    .replace(/🔗\s*/g, '')                           
+    .replace(/🛒 Deals by @\S+/g, '')                 
+    .replace(/\*\*/g, '')
+    .replace(/[\w\s\.]{1,25} : /g, ' ')              
+    .replace(/[\w\s\.]{1,25}:\s*$/gm, '')            
+    .replace(/\s{2,}/g, ' ')
+    .replace(/^\s*[\r\n]/gm, '')                     
+    .trim().substring(0, 120) || 'Hot Deal!';
+}
+
+// ── ASIN & Image Extractors (Moved outside loop for safety) ──
+function getAsin(url) {
+  const m = (url||'').match(/\/dp\/([A-Z0-9]{10})/);
+  return m ? m[1] : null;
+}
+
+function getBestImage(deal, store) {
+  if (!deal) return '';
+  let img = deal.image || '';
+  if (!img || img.includes('ws-in.amazon-adsystem')) {
+    const asin = getAsin(deal.url);
+    if (asin) {
+      img = `https://images-na.ssl-images-amazon.com/images/I/${asin}._SL300_.jpg`;
+    }
+  }
+  return img;
+}
+
+const storeColors = {
+  amazon: '#FF9900', flipkart: '#2874F0', myntra: '#FF3F6C',
+  ajio: '#1a1a1a', meesho: '#F16565', other: '#553C9A'
+};
+
+// ── Render ──
+function renderDeals(deals) {
+  const grid = document.getElementById('deals-grid');
+  
+  // Failsafe: if the JSON is broken or not an array
+  if (!deals || !Array.isArray(deals)) {
+     grid.innerHTML = '<div class="loading"><p>⚠️ Error formatting data.</p></div>';
+     return;
+  }
+
+  if (!deals.length) {
+    grid.innerHTML = '<div class="loading"><p>🔍 No deals found. Check back soon!</p></div>';
+    return;
+  }
+  
+  grid.innerHTML = deals.map((deal, i) => {
+    if (!deal) return ''; // Skip empty objects
+
+    const store = getStore(deal.text||'', deal.url||'');
+    const bestImage = getBestImage(deal, store);
+    const bg = storeColors[store] || storeColors.other;
+    
+    let imageHtml = '';
+    if (bestImage) {
+      imageHtml = `
+      <div class="card-img-wrap">
+        <img src="${bestImage}" 
+             alt="Product" 
+             loading="lazy" 
+             onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" 
+        />
+        <div class="card-img-placeholder" style="display:none; background:${bg}">
+          <span>${store.toUpperCase()} DEAL</span>
+        </div>
+      </div>`;
+    } else {
+      imageHtml = `
+      <div class="card-img-wrap">
+        <div class="card-img-placeholder" style="background:${bg}">
+          <span>${store.toUpperCase()} DEAL</span>
+        </div>
+      </div>`;
+    }
+
+    return `
+    <div class="deal-card" style="animation-delay:${i * 0.04}s">
+      ${imageHtml}
+      <div class="card-header">
+        ${getStoreBadge(store)}
+        <span class="time-ago">${timeAgo(deal.timestamp)}</span>
+      </div>
+      <div class="card-body">
+        <p class="deal-title">${cleanTitle(deal.text)}</p>
+      </div>
+      <div class="card-footer">
+        <a href="${deal.url||'javascript:void(0)'}" ${!deal.url ? 'onclick="return false;"' : ''} target="_blank" rel="nofollow" class="deal-link">
+          🛒 Grab This Deal →
+        </a>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function filterDeals(type, btn) {
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  const filtered = type === 'all' ? allDeals : allDeals.filter(d => getStore(d.text||'', d.url||'') === type);
+  renderDeals(filtered);
+}
+
+function searchDeals(query) {
+  const q = query.toLowerCase().trim();
+  if (!q) { renderDeals(allDeals); return; }
+  const filtered = allDeals.filter(d => {
+    const text = cleanTitle(d.text || '').toLowerCase();
+    return text.includes(q);
+  });
+  renderDeals(filtered);
+  document.getElementById('deal-count').textContent = filtered.length + (filtered.length < allDeals.length ? ' found' : '');
+}
+
+async function loadDeals() {
+  try {
+    const res = await fetch('deals.json?t=' + Date.now());
+    if (!res.ok) throw new Error('Network error or file missing');
+    
+    allDeals = await res.json();
+    document.getElementById('deal-count').textContent = allDeals.length;
+    
+    if (allDeals && allDeals[0]) {
+      document.getElementById('last-update').textContent = timeAgo(allDeals[0].timestamp);
+    }
+    
+    renderDeals(allDeals);
+  } catch(e) {
+    document.getElementById('deals-grid').innerHTML = '<div class="loading"><p>⏳ Deals are being collected...<br>Check back in a few minutes!</p></div>';
+    console.error("Deal fetch failed:", e);
+  }
+}
+
+// Boot up
+loadDeals();
+setInterval(loadDeals, 30000); 
+</script>
+</body>
+</html>
