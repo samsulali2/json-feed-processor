@@ -1,4 +1,13 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Crazy Online Deals 🔥 Best Deals in India</title><meta name="description" content="Best online deals, offers and discounts from Amazon, Flipkart and more. Updated every 5 minutes!"><link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Bangers&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet"><style>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Crazy Online Deals 🔥 Best Deals in India</title>
+<meta name="description" content="Best online deals, offers and discounts from Amazon, Flipkart and more. Updated every 5 minutes!">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bangers&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
 :root {
 --red: #FF2D2D;
 --orange: #FF6B00;
@@ -181,13 +190,6 @@ animation: live-blink 1.2s ease-in-out infinite;
 .tagline-sub { display: none; }
 }
 
-/* header css above */
-/* hero merged into header — keep gradient-shift for logo text */
-@keyframes gradient-shift {
-0%   { background-position: 0%; }
-100% { background-position: 200%; }
-}
-/* marquee kept for stats bar decoration */
 @keyframes marquee {
 0%   { transform: translateX(100%); }
 100% { transform: translateX(-100%); }
@@ -337,7 +339,6 @@ display: flex;
 flex-direction: column;
 transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
 animation: card-in 0.4s ease both;
-overflow: hidden;
 }
 @keyframes card-in {
 from { opacity: 0; transform: translateY(16px); }
@@ -440,7 +441,6 @@ footer a { color: var(--orange); text-decoration: none; }
 
 @media (max-width: 768px) {
 .sidebar { display: none; }
-
 nav { padding-right: 100px; }
 .deals-grid { grid-template-columns: 1fr 1fr; }
 }
@@ -449,44 +449,48 @@ nav { padding-right: 100px; }
 .logo { font-size: 1.4rem; }
 }
 
-.card-img-placeholder {
-height: 60px;
-display: flex;
-align-items: center;
-justify-content: center;
-border-bottom: 1px solid rgba(255,255,255,0.06);
-}
-.card-img-placeholder span {
-color: rgba(255,255,255,0.85);
-font-size: 12px;
-font-weight: 700;
-letter-spacing: 1px;
-text-transform: uppercase;
-}
-
-/* ── Deal card image — fixed 160px box, product fits inside ── */
+/* ── STRICT IMAGE CONTAINER STYLES ── */
 .card-img-wrap {
   width: 100%;
-  height: 160px;
-  overflow: hidden;
-  background: #fff;
+  height: 160px; /* Fixed height container */
+  background: #ffffff;
   border-bottom: 1px solid rgba(255,255,255,0.06);
   display: flex;
   align-items: center;
   justify-content: center;
-  flex-shrink: 0;
+  position: relative;
+  overflow: hidden;
 }
+
 .card-img-wrap img {
   width: 100%;
-  height: 160px;
-  object-fit: contain;
+  height: 100%; /* forces image to strictly obey container limits */
+  object-fit: contain; /* Keeps ratio without zooming/cropping */
   object-position: center;
   padding: 10px;
   display: block;
-  flex-shrink: 0;
 }
-</style></head><body><header>
-  <!-- Row 1: Telegram btn (left) | Logo SVG (center) | Search (right) -->
+
+/* Match the exact same height as the wrapper */
+.card-img-placeholder {
+  width: 100%;
+  height: 160px; 
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.card-img-placeholder span {
+  color: rgba(255,255,255,0.85);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+</style>
+</head>
+<body>
+<header>
   <div class="header-logo-row">
     <a href="https://t.me/hugediscountshop" target="_blank" class="header-tg-btn">
       ✈️ Join Telegram
@@ -499,7 +503,6 @@ text-transform: uppercase;
       <input type="text" id="search-input" placeholder="Search deals..." oninput="searchDeals(this.value)"/>
     </div>
   </div>
-  <!-- Row 2: Tagline centered -->
   <div class="header-sub-row">
     <span class="tagline-main">HOTTEST DEALS IN INDIA <span class="fire-icon">🔥</span></span>
     <span class="tagline-divider"></span>
@@ -507,162 +510,106 @@ text-transform: uppercase;
     <span class="tagline-divider"></span>
     <div class="live-badge"><div class="live-dot"></div> Live</div>
   </div>
-</header><div class="stats-bar"><div class="stats-inner"><div class="stat">🔥 <strong id="deal-count">0</strong> deals</div><div class="stat">⏱️ Updated <strong id="last-update">just now</strong></div><div class="stat">🛒 Amazon, Flipkart & more</div><div class="visitor-badge">👁️ <span id="visitor-count">...</span> visitors today</div></div></div><div class="page-body"><aside class="sidebar" id="about"><div class="sidebar-card"><h3>⚡ Why Us?</h3><div class="feature-item"><div class="feature-icon-sm">⚡</div><div><h4>Updated Every 5 Min</h4><p>Never miss a flash sale or lightning deal</p></div></div><div class="feature-item"><div class="feature-icon-sm">🏪</div><div><h4>10+ Sources</h4><p>Amazon, Flipkart, Myntra, Ajio & more</p></div></div><div class="feature-item"><div class="feature-icon-sm">💯</div><div><h4>100% Free</h4><p>No signup, no spam, just deals</p></div></div><div class="feature-item"><div class="feature-icon-sm">📲</div><div><h4>Telegram Alerts</h4><p>Instant notifications on your phone</p></div></div><div class="feature-item"><div class="feature-icon-sm">🤖</div><div><h4>AI Powered</h4><p>Smart deal detection & filtering</p></div></div></div><div class="sidebar-card"><h3>🤔 About Us</h3><p class="about-text">Crazy Online Deals is India's fastest deal aggregator. We hunt the best discounts from Amazon India, Flipkart, Myntra, Ajio and dozens of other stores so you don't have to.</p><p class="about-text" style="margin-top:8px;">Our affiliate links help us keep this service free for everyone.</p></div><div class="sidebar-card" style="background: linear-gradient(135deg, #0F2027, #203A43); border-color: rgba(34,158,217,0.3);"><h3 style="color:#229ED9;">📲 Get Alerts!</h3><p class="about-text" style="margin-bottom:12px;">Join our Telegram channel for instant deal notifications!</p><a href="https://t.me/hugediscountshop" target="_blank" style="display:block; text-align:center; background:#229ED9; color:white; text-decoration:none; font-weight:800; font-size:13px; padding:10px; border-radius:10px;">
-✈️ @hugediscountshop
-</a></div></aside><main class="main-content" id="deals"><div class="filters"><button class="filter-btn active" onclick="filterDeals('all', this)">🔥 All Deals</button><button class="filter-btn" onclick="filterDeals('amazon', this)">📦 Amazon</button><button class="filter-btn" onclick="filterDeals('flipkart', this)">🛍️ Flipkart</button><button class="filter-btn" onclick="filterDeals('other', this)">🏪 Others</button></div><div class="section-title">⚡ TODAY'S HOT DEALS</div><div class="deals-grid" id="deals-grid"><div class="loading"><div class="loading-spinner"></div><p>Loading deals...</p></div></div></main></div><footer><p>© 2026 CrazyOnlineDeals.in • <a href="https://t.me/hugediscountshop">Telegram</a> • Made with ❤️ in India 🇮🇳</p><p style="margin-top:6px;">Prices subject to change. We may earn affiliate commission on purchases.</p></footer><script>
+</header>
+<div class="stats-bar">
+  <div class="stats-inner">
+    <div class="stat">🔥 <strong id="deal-count">0</strong> deals</div>
+    <div class="stat">⏱️ Updated <strong id="last-update">just now</strong></div>
+    <div class="stat">🛒 Amazon, Flipkart & more</div>
+    <div class="visitor-badge">👁️ <span id="visitor-count">...</span> visitors today</div>
+  </div>
+</div>
+<div class="page-body">
+  <aside class="sidebar" id="about">
+    <div class="sidebar-card">
+      <h3>⚡ Why Us?</h3>
+      <div class="feature-item"><div class="feature-icon-sm">⚡</div><div><h4>Updated Every 5 Min</h4><p>Never miss a flash sale or lightning deal</p></div></div>
+      <div class="feature-item"><div class="feature-icon-sm">🏪</div><div><h4>10+ Sources</h4><p>Amazon, Flipkart, Myntra, Ajio & more</p></div></div>
+      <div class="feature-item"><div class="feature-icon-sm">💯</div><div><h4>100% Free</h4><p>No signup, no spam, just deals</p></div></div>
+      <div class="feature-item"><div class="feature-icon-sm">📲</div><div><h4>Telegram Alerts</h4><p>Instant notifications on your phone</p></div></div>
+      <div class="feature-item"><div class="feature-icon-sm">🤖</div><div><h4>AI Powered</h4><p>Smart deal detection & filtering</p></div></div>
+    </div>
+    <div class="sidebar-card">
+      <h3>🤔 About Us</h3>
+      <p class="about-text">Crazy Online Deals is India's fastest deal aggregator. We hunt the best discounts from Amazon India, Flipkart, Myntra, Ajio and dozens of other stores so you don't have to.</p>
+      <p class="about-text" style="margin-top:8px;">Our affiliate links help us keep this service free for everyone.</p>
+    </div>
+    <div class="sidebar-card" style="background: linear-gradient(135deg, #0F2027, #203A43); border-color: rgba(34,158,217,0.3);">
+      <h3 style="color:#229ED9;">📲 Get Alerts!</h3>
+      <p class="about-text" style="margin-bottom:12px;">Join our Telegram channel for instant deal notifications!</p>
+      <a href="https://t.me/hugediscountshop" target="_blank" style="display:block; text-align:center; background:#229ED9; color:white; text-decoration:none; font-weight:800; font-size:13px; padding:10px; border-radius:10px;">
+        ✈️ @hugediscountshop
+      </a>
+    </div>
+  </aside>
+  <main class="main-content" id="deals">
+    <div class="filters">
+      <button class="filter-btn active" onclick="filterDeals('all', this)">🔥 All Deals</button>
+      <button class="filter-btn" onclick="filterDeals('amazon', this)">📦 Amazon</button>
+      <button class="filter-btn" onclick="filterDeals('flipkart', this)">🛍️ Flipkart</button>
+      <button class="filter-btn" onclick="filterDeals('other', this)">🏪 Others</button>
+    </div>
+    <div class="section-title">⚡ TODAY'S HOT DEALS</div>
+    <div class="deals-grid" id="deals-grid">
+      <div class="loading">
+        <div class="loading-spinner"></div>
+        <p>Loading deals...</p>
+      </div>
+    </div>
+  </main>
+</div>
+<footer>
+  <p>© 2026 CrazyOnlineDeals.in • <a href="https://t.me/hugediscountshop">Telegram</a> • Made with ❤️ in India 🇮🇳</p>
+  <p style="margin-top:6px;">Prices subject to change. We may earn affiliate commission on purchases.</p>
+</footer>
+
+<script>
 let allDeals = [];
-// ── Visitor counter (localStorage based) ──
+
+// ── Visitor counter ──
 function updateVisitorCount() {
-const today = new Date().toDateString();
-const data  = JSON.parse(localStorage.getItem('cod_visitors') || '{"date":"","count":0}');
-if (data.date !== today) {
-data.date  = today;
-data.count = Math.floor(Math.random() * 800) + 200; // seed for new day
-}
-// increment on each visit
-const visits = parseInt(localStorage.getItem('cod_visits_' + today) || '0');
-if (visits === 0) {
-data.count += Math.floor(Math.random() * 5) + 1;
-localStorage.setItem('cod_visitors', JSON.stringify(data));
-}
-localStorage.setItem('cod_visits_' + today, '1');
-document.getElementById('visitor-count').textContent = data.count.toLocaleString('en-IN');
+  const today = new Date().toDateString();
+  const data  = JSON.parse(localStorage.getItem('cod_visitors') || '{"date":"","count":0}');
+  if (data.date !== today) {
+    data.date  = today;
+    data.count = Math.floor(Math.random() * 800) + 200; 
+  }
+  const visits = parseInt(localStorage.getItem('cod_visits_' + today) || '0');
+  if (visits === 0) {
+    data.count += Math.floor(Math.random() * 5) + 1;
+    localStorage.setItem('cod_visitors', JSON.stringify(data));
+  }
+  localStorage.setItem('cod_visits_' + today, '1');
+  document.getElementById('visitor-count').textContent = data.count.toLocaleString('en-IN');
 }
 updateVisitorCount();
+
 // ── Helpers ──
 function getStore(text, url) {
-const t = (text + url).toLowerCase();
-if (t.includes('amazon') || t.includes('amzn') || t.includes('tinyurl') && t.includes('amazon')) return 'amazon';
-if (t.includes('flipkart') || t.includes('shopsy') || t.includes('fktr')) return 'flipkart';
-if (t.includes('myntra')) return 'myntra';
-if (t.includes('ajio')) return 'ajio';
-if (t.includes('meesho')) return 'meesho';
-if (t.includes('nykaa')) return 'nykaa';
-return 'other';
+  const t = (text + url).toLowerCase();
+  if (t.includes('amazon') || t.includes('amzn') || (t.includes('tinyurl') && t.includes('amazon'))) return 'amazon';
+  if (t.includes('flipkart') || t.includes('shopsy') || t.includes('fktr')) return 'flipkart';
+  if (t.includes('myntra')) return 'myntra';
+  if (t.includes('ajio')) return 'ajio';
+  if (t.includes('meesho')) return 'meesho';
+  if (t.includes('nykaa')) return 'nykaa';
+  return 'other';
 }
+
 function getStoreBadge(store) {
-const map = {
-amazon:   '<span class="store-badge badge-amazon">Amazon</span>',
-flipkart: '<span class="store-badge badge-flipkart">Flipkart</span>',
-myntra:   '<span class="store-badge badge-myntra">Myntra</span>',
-ajio:     '<span class="store-badge badge-ajio">Ajio</span>',
-meesho:   '<span class="store-badge badge-meesho">Meesho</span>',
-nykaa:    '<span class="store-badge badge-nykaa">Nykaa</span>',
-other:    '<span class="store-badge badge-other">Deal</span>',
-};
-return map[store] || map.other;
+  const map = {
+    amazon:   '<span class="store-badge badge-amazon">Amazon</span>',
+    flipkart: '<span class="store-badge badge-flipkart">Flipkart</span>',
+    myntra:   '<span class="store-badge badge-myntra">Myntra</span>',
+    ajio:     '<span class="store-badge badge-ajio">Ajio</span>',
+    meesho:   '<span class="store-badge badge-meesho">Meesho</span>',
+    nykaa:    '<span class="store-badge badge-nykaa">Nykaa</span>',
+    other:    '<span class="store-badge badge-other">Deal</span>',
+  };
+  return map[store] || map.other;
 }
+
 function timeAgo(ts) {
-const diff = Math.floor((Date.now() - new Date(ts)) / 1000);
-if (diff < 60)   return 'just now';
-if (diff < 3600) return Math.floor(diff/60) + 'm ago';
-if (diff < 86400)return Math.floor(diff/3600) + 'h ago';
-return Math.floor(diff/86400) + 'd ago';
-}
-function cleanTitle(text) {
-return (text || '')
-.replace(/\[.*?\]\(https?:\/\/[^)]+\)/g, '')   // [text](url) markdown
-.replace(/https?:\/\/\S+/g, '')                  // plain URLs
-.replace(/🔗\s*/g, '')                            // link emoji
-.replace(/🛒 Deals by @\S+/g, '')                 // channel credit
-.replace(/\*\*/g, '')
-.replace(/[\w\s\.]{1,25} : /g, ' ')              // "Fiama : " "Palmolive : " orphan labels
-.replace(/[\w\s\.]{1,25}:\s*$/gm, '')            // "More:" at end of line
-.replace(/\s{2,}/g, ' ')
-.replace(/^\s*[\r\n]/gm, '')                      // empty lines
-.trim().substring(0, 120) || 'Hot Deal!';
-}
-// ── Render ──
-function renderDeals(deals) {
-const grid = document.getElementById('deals-grid');
-if (!deals.length) {
-grid.innerHTML = '<div class="loading"><p>🔍 No deals found. Check back soon!</p></div>';
-return;
-}
-grid.innerHTML = deals.map((deal, i) => {
-const store = getStore(deal.text||'', deal.url||'');
-// Image display
-// Extract ASIN from URL for Amazon fallback image
-function getAsin(url) {
-  const m = (url||'').match(/\/dp\/([A-Z0-9]{10})/);
-  return m ? m[1] : null;
-}
-function getBestImage(deal, store) {
-  let img = deal.image || '';
-  // If we have an ASIN in the deal URL, build Amazon image URL directly
-  // This bypasses any CDN/proxy issues
-  if (!img || img.includes('ws-in.amazon-adsystem')) {
-    const asin = getAsin(deal.url);
-    if (asin) {
-      // Amazon product image via Associates — this URL always works in browsers
-      img = `https://images-na.ssl-images-amazon.com/images/I/${asin}._SL300_.jpg`;
-    }
-  }
-  return img;
-}
-const bestImage = getBestImage(deal, store);
-const storeColors = {
-  amazon: '#FF9900', flipkart: '#2874F0', myntra: '#FF3F6C',
-  ajio: '#1a1a1a', meesho: '#F16565', other: '#553C9A'
-};
-let imageHtml = '';
-if (bestImage) {
-  imageHtml = `<div class="card-img-wrap">
-  <img src="${bestImage}"
-       alt="Product"
-       loading="lazy"
-       style="width:100%;height:160px;object-fit:contain;object-position:center;padding:8px;background:#fff;display:block;"
-       onerror="this.closest('.card-img-wrap').replaceWith('<div class=\"card-img-placeholder\" style=\"background:${storeColors[store]||storeColors.other}\"><span>${store.toUpperCase()} DEAL</span></div>')"
-  />
-</div>`;
-} else {
-  const bg = storeColors[store] || storeColors.other;
-  imageHtml = `<div class="card-img-placeholder" style="background:${bg}">
-    <span>${store.toUpperCase()} DEAL</span>
-  </div>`;
-}
-return `
-<div class="deal-card" style="animation-delay:${i * 0.04}s">
-${imageHtml}
-<div class="card-header">
-${getStoreBadge(store)}
-<span class="time-ago">${timeAgo(deal.timestamp)}</span></div><div class="card-body"><p class="deal-title">${cleanTitle(deal.text)}</p></div><div class="card-footer"><a href="${deal.url||'javascript:void(0)'}" onclick="if(!deal.url){return false;}" target="_blank" rel="nofollow" class="deal-link">
-🛒 Grab This Deal →
-</a></div></div>`;
-}).join('');
-}
-function filterDeals(type, btn) {
-document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-btn.classList.add('active');
-const filtered = type === 'all' ? allDeals
-: allDeals.filter(d => getStore(d.text||'', d.url||'') === type);
-renderDeals(filtered);
-}
-function searchDeals(query) {
-const q = query.toLowerCase().trim();
-if (!q) { renderDeals(allDeals); return; }
-const filtered = allDeals.filter(d => {
-  const text = cleanTitle(d.text || '').toLowerCase();
-  return text.includes(q);
-});
-renderDeals(filtered);
-// Update count
-document.getElementById('deal-count').textContent =
-  filtered.length + (filtered.length < allDeals.length ? ' found' : '');
-}
-async function loadDeals() {
-try {
-const res = await fetch('deals.json?t=' + Date.now());
-if (!res.ok) throw new Error('not found');
-allDeals = await res.json();
-document.getElementById('deal-count').textContent = allDeals.length;
-if (allDeals[0]) document.getElementById('last-update').textContent = timeAgo(allDeals[0].timestamp);
-renderDeals(allDeals);
-} catch(e) {
-document.getElementById('deals-grid').innerHTML =
-'<div class="loading"><p>⏳ Deals are being collected...<br>Check back in a few minutes!</p></div>';
-}
-}
-loadDeals();
-setInterval(loadDeals, 30000); // refresh every 30 seconds
-</script></body></html>
+  if(!ts) return 'recently';
+  const diff = Math.floor((Date.now() - new Date(ts)) / 1000);
+  if (diff < 60
