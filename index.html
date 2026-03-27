@@ -1,189 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Crazy Online Deals 🔥 Best Deals in India</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bangers&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+--red: #FF2D2D; --orange: #FF6B00; --yellow: #FFD600; --green: #00C853;
+--dark: #1A1A2E; --card: #16213E; --text: #FFFFFF; --muted: #A0AEC0; --sidebar: 280px;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: var(--dark); color: var(--text); font-family: 'Nunito', sans-serif; min-height: 100vh; overflow-x: hidden; }
+
+/* Header & Layout */
+header { background: linear-gradient(160deg, #0a0820 0%, #141b3a 50%, #0a0820 100%); padding: 0; position: relative; z-index: 100; border-bottom: 2px solid var(--orange); }
+.header-logo-row { display: grid; grid-template-columns: 200px 1fr 200px; align-items: center; padding: 15px 20px; }
+.header-tg-btn { background: #229ED9; color: white; text-decoration: none; font-weight: 800; padding: 10px 16px; border-radius: 30px; font-size: 13px; text-align: center; }
+.logo-banner { max-width: 100%; height: 60px; margin: 0 auto; display: block; }
+.header-search { display: flex; align-items: center; background: rgba(255,255,255,0.1); border-radius: 20px; padding: 5px 15px; }
+.header-search input { background: none; border: none; color: white; outline: none; padding-left: 10px; width: 100%; }
+
+.stats-bar { background: var(--card); padding: 10px 20px; border-bottom: 1px solid rgba(255,255,255,0.05); }
+.stats-inner { max-width: 1400px; margin: 0 auto; display: flex; gap: 20px; font-size: 13px; }
+
+.page-body { max-width: 1400px; margin: 0 auto; display: flex; gap: 20px; padding: 20px; }
+.main-content { flex: 1; }
+.deals-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; }
+
+/* Deal Card Styles */
+.deal-card { background: var(--card); border-radius: 12px; overflow: hidden; border: 1px solid rgba(255,255,255,0.1); transition: 0.3s; }
+.card-img-wrap { width: 100%; height: 200px; background: white; display: flex; align-items: center; justify-content: center; position: relative; }
+.card-img-wrap img { max-width: 90%; max-height: 90%; object-fit: contain; }
+.card-img-placeholder { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; }
+
+.card-body { padding: 15px; }
+.deal-title { font-size: 14px; font-weight: 700; height: 60px; overflow: hidden; margin-bottom: 10px; color: var(--text); }
+.card-header { padding: 10px 15px; display: flex; justify-content: space-between; align-items: center; }
+.store-badge { font-size: 10px; font-weight: 800; padding: 4px 8px; border-radius: 4px; text-transform: uppercase; }
+.badge-amazon { background: #FF9900; color: black; }
+.badge-flipkart { background: #2874F0; color: white; }
+.time-ago { font-size: 11px; color: var(--muted); }
+
+.deal-link { display: block; background: linear-gradient(90deg, var(--red), var(--orange)); color: white; text-align: center; padding: 10px; text-decoration: none; font-weight: 700; border-radius: 6px; margin: 0 15px 15px; }
+
+.loading { grid-column: 1/-1; text-align: center; padding: 50px; color: var(--muted); }
+
+/* Sidebar */
+.sidebar { width: var(--sidebar); display: flex; flex-direction: column; gap: 20px; }
+@media (max-width: 768px) { 
+    .sidebar { display: none; } 
+    .header-logo-row { grid-template-columns: 1fr; gap: 10px; text-align: center; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-logo-row">
+    <a href="https://t.me/yourchannel" target="_blank" class="header-tg-btn">✈️ Join Telegram</a>
+    <h2 style="color:var(--orange); text-align:center; font-family:'Bangers'; letter-spacing:2px;">CRAZY DEALS</h2>
+    <div class="header-search">
+      <input type="text" id="search-input" placeholder="Search deals..." oninput="searchDeals(this.value)"/>
+    </div>
+  </div>
+</header>
+
+<div class="stats-bar">
+  <div class="stats-inner">
+    <div>🔥 <strong id="deal-count">0</strong> deals today</div>
+    <div>⏱️ Updated <strong id="last-update">...</strong></div>
+  </div>
+</div>
+
+<div class="page-body">
+  <main class="main-content">
+    <div class="deals-grid" id="deals-grid">
+      <div class="loading">Searching for hottest deals...</div>
+    </div>
+  </main>
+
+  <aside class="sidebar">
+    <div style="background:var(--card); padding:20px; border-radius:12px; border:1px solid rgba(255,255,255,0.1);">
+        <h3 style="color:var(--yellow); margin-bottom:10px;">Why us?</h3>
+        <p style="font-size:13px; color:var(--muted);">We track prices from 10+ stores every 5 minutes to find the biggest drops.</p>
+    </div>
+  </aside>
+</div>
+
 <script>
 let allDeals = [];
 
-// ── Visitor counter ──
-function updateVisitorCount() {
-  try {
-    const today = new Date().toDateString();
-    const data  = JSON.parse(localStorage.getItem('cod_visitors') || '{"date":"","count":0}');
-    if (data.date !== today) {
-      data.date  = today;
-      data.count = Math.floor(Math.random() * 800) + 200; 
-    }
-    const visits = parseInt(localStorage.getItem('cod_visits_' + today) || '0');
-    if (visits === 0) {
-      data.count += Math.floor(Math.random() * 5) + 1;
-      localStorage.setItem('cod_visitors', JSON.stringify(data));
-    }
-    localStorage.setItem('cod_visits_' + today, '1');
-    document.getElementById('visitor-count').textContent = data.count.toLocaleString('en-IN');
-  } catch (err) {
-    document.getElementById('visitor-count').textContent = "---";
-  }
-}
-updateVisitorCount();
-
-// ── Helpers ──
+// Helper: Determine store name
 function getStore(text, url) {
   const t = (text + url).toLowerCase();
   if (t.includes('amazon') || t.includes('amzn')) return 'amazon';
-  if (t.includes('flipkart') || t.includes('shopsy') || t.includes('fktr')) return 'flipkart';
+  if (t.includes('flipkart') || t.includes('fktr')) return 'flipkart';
   if (t.includes('myntra')) return 'myntra';
-  if (t.includes('ajio')) return 'ajio';
-  if (t.includes('meesho')) return 'meesho';
-  if (t.includes('nykaa')) return 'nykaa';
   return 'other';
 }
 
-function getStoreBadge(store) {
-  const map = {
-    amazon:   '<span class="store-badge badge-amazon">Amazon</span>',
-    flipkart: '<span class="store-badge badge-flipkart">Flipkart</span>',
-    myntra:   '<span class="store-badge badge-myntra">Myntra</span>',
-    ajio:     '<span class="store-badge badge-ajio">Ajio</span>',
-    meesho:   '<span class="store-badge badge-meesho">Meesho</span>',
-    nykaa:    '<span class="store-badge badge-nykaa">Nykaa</span>',
-    other:    '<span class="store-badge badge-other">Deal</span>',
-  };
-  return map[store] || map.other;
-}
-
+// Helper: Time calculation
 function timeAgo(ts) {
   if(!ts) return 'recently';
-  const dateObj = new Date(ts);
-  if (isNaN(dateObj)) return 'recently';
-  const diff = Math.floor((Date.now() - dateObj) / 1000);
-  if (diff < 60)   return 'just now';
+  const diff = Math.floor((Date.now() - new Date(ts)) / 1000);
+  if (diff < 60) return 'just now';
   if (diff < 3600) return Math.floor(diff/60) + 'm ago';
-  if (diff < 86400)return Math.floor(diff/3600) + 'h ago';
+  if (diff < 86400) return Math.floor(diff/3600) + 'h ago';
   return Math.floor(diff/86400) + 'd ago';
 }
 
-function cleanTitle(text) {
-  return (text || '')
-    .replace(/\[.*?\]\(https?:\/\/[^)]+\)/g, '')  
-    .replace(/https?:\/\/\S+/g, '')                  
-    .replace(/🔗\s*/g, '')                           
-    .replace(/🛒 Deals by @\S+/g, '')                 
-    .replace(/\*\*/g, '')
-    .trim().substring(0, 100) || 'Hot Deal!';
-}
-
-// ── IMPROVED ASIN & IMAGE LOGIC ──
+// Helper: Extract Amazon ASIN for high-quality images
 function getAsin(url) {
   if (!url) return null;
-  // Improved regex to catch /dp/, /gp/product/, /gp/aw/d/ etc.
   const m = url.match(/(?:dp|gp\/product|gp\/aw\/d|asin)\/([A-Z0-9]{10})/i);
   return m ? m[1] : null;
 }
 
+// Main: Determine best image
 function getBestImage(deal, store) {
-  if (!deal) return '';
-  
-  // 1. If the scraper provided a valid image, use it
-  let img = deal.image || '';
-  
-  // 2. If it's Amazon, try to generate a high-quality image URL from ASIN
-  // This works even if the scraper didn't find an image!
   if (store === 'amazon') {
     const asin = getAsin(deal.url);
-    if (asin) {
-      // Using the more reliable m.media-amazon.com endpoint
-      return `https://m.media-amazon.com/images/P/${asin}.01._SCLZZZZZZZ_AC_SY400_.jpg`;
-    }
+    if (asin) return `https://m.media-amazon.com/images/P/${asin}.01._SCLZZZZZZZ_AC_SY400_.jpg`;
   }
-  
-  // 3. Clean up common broken image patterns from scrapers
-  if (img.includes('ws-in.amazon-adsystem') || img.length < 5) {
-      return '';
-  }
-
-  return img;
+  return deal.image || '';
 }
 
-const storeColors = {
-  amazon: '#FF9900', flipkart: '#2874F0', myntra: '#FF3F6C',
-  ajio: '#1a1a1a', meesho: '#F16565', other: '#553C9A'
-};
-
-// ── Render ──
 function renderDeals(deals) {
   const grid = document.getElementById('deals-grid');
-  
-  if (!deals || !Array.isArray(deals)) {
-     grid.innerHTML = '<div class="loading"><p>⚠️ Error loading deals.</p></div>';
-     return;
-  }
-
-  if (!deals.length) {
-    grid.innerHTML = '<div class="loading"><p>🔍 No deals found.</p></div>';
+  if (!deals || deals.length === 0) {
+    grid.innerHTML = '<div class="loading">No deals found right now.</div>';
     return;
   }
-  
-  grid.innerHTML = deals.map((deal, i) => {
-    const store = getStore(deal.text||'', deal.url||'');
-    const bestImage = getBestImage(deal, store);
-    const bg = storeColors[store] || storeColors.other;
-    
-    // Logic: If image exists, show it. If it fails to load (404), hide it and show placeholder.
-    let imageHtml = `
-      <div class="card-img-wrap">
-        ${bestImage ? `
-          <img src="${bestImage}" 
-               alt="Product" 
-               loading="lazy" 
-               onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" 
-          />` : ''}
-        <div class="card-img-placeholder" style="${bestImage ? 'display:none;' : 'display:flex;'} background:${bg}">
-          <span>${store.toUpperCase()} DEAL</span>
-        </div>
-      </div>`;
 
+  grid.innerHTML = deals.map(deal => {
+    const store = getStore(deal.text || '', deal.url || '');
+    const imgUrl = getBestImage(deal, store);
+    const storeClass = `badge-${store}`;
+    
     return `
-    <div class="deal-card" style="animation-delay:${i * 0.03}s">
-      ${imageHtml}
-      <div class="card-header">
-        ${getStoreBadge(store)}
-        <span class="time-ago">${timeAgo(deal.timestamp)}</span>
+      <div class="deal-card">
+        <div class="card-img-wrap">
+          ${imgUrl ? `<img src="${imgUrl}" onerror="this.parentElement.innerHTML='<div class=card-img-placeholder>NO IMAGE</div>'">` : '<div class="card-img-placeholder">SALE</div>'}
+        </div>
+        <div class="card-header">
+          <span class="store-badge ${storeClass}">${store}</span>
+          <span class="time-ago">${timeAgo(deal.timestamp)}</span>
+        </div>
+        <div class="card-body">
+          <div class="deal-title">${deal.text ? deal.text.substring(0, 80) : 'Special Offer'}...</div>
+        </div>
+        <a href="${deal.url}" target="_blank" class="deal-link">View Deal →</a>
       </div>
-      <div class="card-body">
-        <p class="deal-title">${cleanTitle(deal.text)}</p>
-      </div>
-      <div class="card-footer">
-        <a href="${deal.url||'#'}" target="_blank" rel="nofollow" class="deal-link">
-          🛒 Grab This Deal →
-        </a>
-      </div>
-    </div>`;
+    `;
   }).join('');
 }
 
-function filterDeals(type, btn) {
-  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-  const filtered = type === 'all' ? allDeals : allDeals.filter(d => getStore(d.text||'', d.url||'') === type);
-  renderDeals(filtered);
+async function loadDeals() {
+  console.log("Fetching deals...");
+  try {
+    const response = await fetch('deals.json?t=' + Date.now());
+    if (!response.ok) throw new Error("File not found");
+    
+    allDeals = await response.json();
+    console.log("Deals loaded:", allDeals.length);
+    
+    document.getElementById('deal-count').textContent = allDeals.length;
+    
+    // Safety check: only update "Last Update" if deals exist
+    if (allDeals.length > 0 && allDeals[0].timestamp) {
+        document.getElementById('last-update').textContent = timeAgo(allDeals[0].timestamp);
+    } else {
+        document.getElementById('last-update').textContent = "Just now";
+    }
+    
+    renderDeals(allDeals);
+  } catch (error) {
+    console.error("Error loading JSON:", error);
+    document.getElementById('deals-grid').innerHTML = `
+        <div class="loading">
+            <p>⚠️ Failed to load deals.json</p>
+            <p style="font-size:12px;">Make sure deals.json is in the same folder as this HTML file.</p>
+        </div>`;
+  }
 }
 
 function searchDeals(query) {
-  const q = query.toLowerCase().trim();
-  if (!q) { renderDeals(allDeals); return; }
+  const q = query.toLowerCase();
   const filtered = allDeals.filter(d => (d.text || '').toLowerCase().includes(q));
   renderDeals(filtered);
 }
 
-async function loadDeals() {
-  try {
-    const res = await fetch('deals.json?t=' + Date.now());
-    allDeals = await res.json();
-    document.getElementById('deal-count').textContent = allDeals.length;
-    if (allDeals[0]) document.getElementById('last-update').textContent = timeAgo(allDeals[0].timestamp);
-    renderDeals(allDeals);
-  } catch(e) {
-    document.getElementById('deals-grid').innerHTML = '<div class="loading"><p>⏳ Refreshing deals...</p></div>';
-  }
-}
-
+// Start
 loadDeals();
-setInterval(loadDeals, 60000); 
+// Refresh every minute
+setInterval(loadDeals, 60000);
 </script>
+
+</body>
+</html>
