@@ -1,568 +1,7 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Crazy Online Deals 🔥 Best Deals in India</title>
-<meta name="description" content="Best online deals, offers and discounts from Amazon, Flipkart and more. Updated every 5 minutes!">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Bangers&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
-<style>
-:root {
---red: #FF2D2D;
---orange: #FF6B00;
---yellow: #FFD600;
---green: #00C853;
---dark: #1A1A2E;
---card: #16213E;
---text: #FFFFFF;
---muted: #A0AEC0;
---sidebar: 280px;
-}
-* { margin: 0; padding: 0; box-sizing: border-box; }
-body {
-background: var(--dark);
-color: var(--text);
-font-family: 'Nunito', sans-serif;
-min-height: 100vh;
-overflow-x: hidden;
-}
-
-/* ── HEADER LAYOUT ── */
-header {
-background: linear-gradient(160deg, #0a0820 0%, #141b3a 50%, #0a0820 100%);
-padding: 0;
-box-shadow: 0 4px 32px rgba(255,107,0,0.3);
-position: relative;
-z-index: 100;
-overflow: hidden;
-}
-header::after {
-content: '';
-position: absolute; inset: 0;
-background: radial-gradient(ellipse 70% 80% at 50% 0%, rgba(255,107,0,0.06) 0%, transparent 70%);
-pointer-events: none;
-}
-
-.header-logo-row {
-display: grid;
-grid-template-columns: 200px 1fr 200px;
-align-items: center;
-padding: 10px 20px 0;
-animation: header-enter 0.5s ease-out;
-}
-@keyframes header-enter {
-from { opacity:0; transform:translateY(-10px); }
-to   { opacity:1; transform:translateY(0); }
-}
-.header-tg-btn {
-display: inline-flex;
-align-items: center;
-gap: 7px;
-background: #229ED9;
-color: white;
-text-decoration: none;
-font-weight: 800;
-font-size: 13px;
-padding: 10px 16px;
-border-radius: 30px;
-white-space: nowrap;
-box-shadow: 0 0 0 0 rgba(34,158,217,0.7);
-animation: tg-pulse 2s infinite;
-transition: transform 0.2s;
-justify-self: start;
-}
-.header-tg-btn:hover { transform: scale(1.05); }
-@keyframes tg-pulse {
-0%   { box-shadow: 0 0 0 0 rgba(34,158,217,0.7); }
-70%  { box-shadow: 0 0 0 12px rgba(34,158,217,0); }
-100% { box-shadow: 0 0 0 0 rgba(34,158,217,0); }
-}
-.logo-banner {
-width: 100%;
-max-width: 700px;
-height: auto;
-max-height: clamp(60px, 9vw, 95px);
-object-fit: contain;
-display: block;
-margin: 0 auto;
-}
-
-.header-search {
-justify-self: end;
-display: flex;
-align-items: center;
-gap: 6px;
-background: rgba(255,255,255,0.07);
-border: 1px solid rgba(255,255,255,0.15);
-border-radius: 30px;
-padding: 6px 14px;
-transition: border-color 0.2s, background 0.2s;
-width: 100%;
-max-width: 190px;
-}
-.header-search:focus-within {
-border-color: rgba(255,107,0,0.6);
-background: rgba(255,255,255,0.1);
-}
-.header-search input {
-background: none;
-border: none;
-outline: none;
-color: white;
-font-size: 13px;
-font-family: 'Nunito', sans-serif;
-width: 100%;
-}
-.header-search input::placeholder { color: rgba(255,255,255,0.4); }
-.header-search svg { flex-shrink: 0; opacity: 0.5; }
-
-.header-sub-row {
-display: flex;
-align-items: center;
-justify-content: center;
-gap: 10px;
-padding: 6px 20px 8px;
-border-top: 1px solid rgba(255,107,0,0.15);
-margin-top: 6px;
-background: rgba(0,0,0,0.25);
-}
-.tagline-main {
-font-family: 'Bangers', cursive;
-font-size: clamp(1rem, 2.2vw, 1.35rem);
-letter-spacing: 3px;
-line-height: 1;
-background: linear-gradient(90deg, #FF2D2D, #FF6B00, #FFD600, #FF6B00, #FF2D2D);
-background-size: 200%;
--webkit-background-clip: text;
--webkit-text-fill-color: transparent;
-background-clip: text;
-animation: gradient-shift 3s linear infinite;
-white-space: nowrap;
-}
-.tagline-divider { width:1px; height:16px; background:rgba(255,107,0,0.3); flex-shrink:0; }
-.tagline-sub {
-font-size: 11px; font-weight: 600;
-color: rgba(255,255,255,0.38);
-letter-spacing: 0.5px;
-white-space: nowrap;
-}
-.fire-icon {
-display: inline-block;
-animation: fire-bounce 0.85s ease-in-out infinite alternate, fire-glow 1.6s ease-in-out infinite;
-transform-origin: bottom center;
-}
-@keyframes fire-bounce {
-0%   { transform: scaleY(1) rotate(-5deg); }
-100% { transform: scaleY(1.2) rotate(5deg); }
-}
-@keyframes fire-glow {
-0%,100% { filter: drop-shadow(0 0 4px #FF6B00); }
-50%     { filter: drop-shadow(0 0 14px #FFD600); }
-}
-.live-badge {
-display: flex; align-items: center; gap: 5px;
-font-size: 11px; font-weight: 700;
-color: rgba(255,255,255,0.6);
-}
-.live-dot {
-width: 7px; height: 7px;
-background: #FF2D2D;
-border-radius: 50%;
-animation: live-blink 1.2s ease-in-out infinite;
-}
-@keyframes live-blink { 0%,100%{opacity:1;} 50%{opacity:0.2;} }
-@keyframes gradient-shift { 0%{background-position:0%;} 100%{background-position:200%;} }
-.logo { display: none; }
-
-@media (max-width: 640px) {
-.header-logo-row {
-  grid-template-columns: 1fr;
-  grid-template-rows: auto auto auto;
-  padding: 8px 12px 0;
-  gap: 8px;
-}
-.header-tg-btn { justify-self: center; font-size: 12px; padding: 8px 14px; }
-.header-search { justify-self: center; max-width: 90%; }
-.tagline-sub { display: none; }
-}
-
-@keyframes marquee {
-0%   { transform: translateX(100%); }
-100% { transform: translateX(-100%); }
-}
-
-.stats-bar {
-background: var(--card);
-border-bottom: 1px solid rgba(255,255,255,0.05);
-padding: 7px 20px;
-}
-.stats-inner {
-max-width: 1400px;
-margin: 0 auto;
-display: flex;
-gap: 24px;
-align-items: center;
-flex-wrap: wrap;
-}
-.stat { font-size: 13px; color: var(--muted); }
-.stat strong { color: var(--yellow); }
-
-.visitor-badge {
-margin-left: auto;
-background: rgba(255,214,0,0.1);
-border: 1px solid rgba(255,214,0,0.2);
-border-radius: 20px;
-padding: 4px 14px;
-font-size: 12px;
-color: var(--yellow);
-font-weight: 700;
-display: flex;
-align-items: center;
-gap: 6px;
-}
-
-.page-body {
-max-width: 1400px;
-margin: 0 auto;
-display: flex;
-gap: 20px;
-padding: 16px 20px;
-align-items: flex-start;
-}
-
-.sidebar {
-width: var(--sidebar);
-flex-shrink: 0;
-position: sticky;
-top: 80px;
-display: flex;
-flex-direction: column;
-gap: 14px;
-}
-.sidebar-card {
-background: var(--card);
-border-radius: 16px;
-border: 1px solid rgba(255,255,255,0.06);
-padding: 16px;
-transition: transform 0.2s;
-}
-.sidebar-card:hover { transform: translateY(-2px); }
-.sidebar-card h3 {
-font-family: 'Bangers', cursive;
-font-size: 1.1rem;
-letter-spacing: 1px;
-color: var(--yellow);
-margin-bottom: 12px;
-display: flex;
-align-items: center;
-gap: 6px;
-}
-.feature-item {
-display: flex;
-align-items: flex-start;
-gap: 10px;
-padding: 8px 0;
-border-bottom: 1px solid rgba(255,255,255,0.05);
-}
-.feature-item:last-child { border-bottom: none; }
-.feature-icon-sm {
-font-size: 20px;
-flex-shrink: 0;
-animation: bounce-icon 2s ease-in-out infinite;
-}
-@keyframes bounce-icon {
-0%, 100% { transform: translateY(0); }
-50% { transform: translateY(-3px); }
-}
-.feature-item h4 { font-size: 12px; font-weight: 800; color: var(--text); }
-.feature-item p { font-size: 11px; color: var(--muted); margin-top: 2px; }
-.about-text {
-font-size: 12px;
-color: var(--muted);
-line-height: 1.7;
-}
-.about-text + .about-text { margin-top: 8px; }
-
-.main-content { flex: 1; min-width: 0; }
-
-.filters {
-display: flex;
-gap: 8px;
-flex-wrap: wrap;
-margin-bottom: 16px;
-}
-.filter-btn {
-padding: 8px 18px;
-border-radius: 20px;
-border: 2px solid rgba(255,255,255,0.1);
-background: transparent;
-color: var(--muted);
-font-family: 'Nunito', sans-serif;
-font-weight: 700;
-font-size: 13px;
-cursor: pointer;
-transition: all 0.2s;
-}
-.filter-btn:hover, .filter-btn.active {
-background: var(--orange);
-border-color: var(--orange);
-color: white;
-transform: translateY(-1px);
-}
-
-.section-title {
-font-family: 'Bangers', cursive;
-font-size: 1.6rem;
-letter-spacing: 2px;
-color: var(--yellow);
-margin-bottom: 16px;
-display: flex;
-align-items: center;
-gap: 10px;
-}
-
-.deals-grid {
-display: grid;
-grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-gap: 14px;
-}
-.deal-card {
-background: var(--card);
-border-radius: 16px;
-border: 1px solid rgba(255,255,255,0.06);
-overflow: hidden;
-display: flex;
-flex-direction: column;
-transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
-animation: card-in 0.4s ease both;
-}
-@keyframes card-in {
-from { opacity: 0; transform: translateY(16px); }
-to   { opacity: 1; transform: translateY(0); }
-}
-.deal-card:hover {
-transform: translateY(-5px);
-box-shadow: 0 12px 40px rgba(0,0,0,0.4);
-border-color: rgba(255,107,0,0.4);
-}
-.card-header {
-padding: 12px 14px 0;
-display: flex;
-justify-content: space-between;
-align-items: center;
-}
-.store-badge {
-font-size: 10px;
-font-weight: 800;
-text-transform: uppercase;
-letter-spacing: 1px;
-padding: 3px 10px;
-border-radius: 10px;
-}
-.badge-amazon  { background: #FF9900; color: #000; }
-.badge-flipkart{ background: #2874F0; color: #fff; }
-.badge-myntra  { background: #FF3F6C; color: #fff; }
-.badge-ajio    { background: #000000; color: #fff; }
-.badge-meesho  { background: #F16565; color: #fff; }
-.badge-nykaa   { background: #FC2779; color: #fff; }
-.badge-other   { background: #553C9A; color: #fff; }
-.time-ago { font-size: 11px; color: var(--muted); }
-.card-body { padding: 10px 14px; flex: 1; }
-.deal-title {
-font-size: 13px;
-font-weight: 700;
-line-height: 1.5;
-color: var(--text);
-display: -webkit-box;
--webkit-line-clamp: 3;
--webkit-box-orient: vertical;
-overflow: hidden;
-}
-.card-footer { padding: 10px 14px 14px; }
-.deal-link {
-display: block;
-text-align: center;
-background: linear-gradient(135deg, #FF2D2D, #FF6B00);
-color: white;
-text-decoration: none;
-font-weight: 700;
-font-size: 12px;
-padding: 7px 10px;
-border-radius: 8px;
-transition: opacity 0.2s, transform 0.2s;
-position: relative;
-overflow: hidden;
-letter-spacing: 0.3px;
-}
-.deal-link::after {
-content: '';
-position: absolute;
-top: -50%; left: -60%;
-width: 40%; height: 200%;
-background: rgba(255,255,255,0.15);
-transform: skewX(-20deg);
-animation: shimmer 3s infinite;
-}
-@keyframes shimmer {
-0% { left: -60%; }
-100% { left: 120%; }
-}
-.deal-link:hover { opacity: 0.9; transform: scale(0.98); }
-
-.loading {
-text-align: center;
-padding: 60px 20px;
-color: var(--muted);
-grid-column: 1/-1;
-}
-.loading-spinner {
-width: 40px; height: 40px;
-border: 3px solid rgba(255,107,0,0.2);
-border-top-color: var(--orange);
-border-radius: 50%;
-animation: spin 0.8s linear infinite;
-margin: 0 auto 16px;
-}
-@keyframes spin { to { transform: rotate(360deg); } }
-
-footer {
-background: #0D0D1A;
-text-align: center;
-padding: 20px;
-color: var(--muted);
-font-size: 12px;
-margin-top: 30px;
-}
-footer a { color: var(--orange); text-decoration: none; }
-
-@media (max-width: 768px) {
-.sidebar { display: none; }
-nav { padding-right: 100px; }
-.deals-grid { grid-template-columns: 1fr 1fr; }
-}
-@media (max-width: 480px) {
-.deals-grid { grid-template-columns: 1fr; }
-.logo { font-size: 1.4rem; }
-}
-
-/* ── STRICT IMAGE CONTAINER STYLES ── */
-.card-img-wrap {
-  width: 100%;
-  height: 160px;
-  background: #ffffff;
-  border-bottom: 1px solid rgba(255,255,255,0.06);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  position: relative;
-  overflow: hidden;
-}
-
-.card-img-wrap img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  object-position: center;
-  padding: 10px;
-  display: block;
-}
-
-.card-img-placeholder {
-  width: 100%;
-  height: 160px; 
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.card-img-placeholder span {
-  color: rgba(255,255,255,0.85);
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 1px;
-  text-transform: uppercase;
-}
-</style>
-</head>
-<body>
-<header>
-  <div class="header-logo-row">
-    <a href="https://t.me/hugediscountshop" target="_blank" class="header-tg-btn">
-      ✈️ Join Telegram
-    </a>
-    <img src="logo-animated.svg" alt="Crazy Online Deals" class="logo-banner"/>
-    <div class="header-search">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5">
-        <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
-      </svg>
-      <input type="text" id="search-input" placeholder="Search deals..." oninput="searchDeals(this.value)"/>
-    </div>
-  </div>
-  <div class="header-sub-row">
-    <span class="tagline-main">HOTTEST DEALS IN INDIA <span class="fire-icon">🔥</span></span>
-    <span class="tagline-divider"></span>
-    <span class="tagline-sub">Updated every 5 min &bull; Amazon &bull; Flipkart &bull; Myntra</span>
-    <span class="tagline-divider"></span>
-    <div class="live-badge"><div class="live-dot"></div> Live</div>
-  </div>
-</header>
-<div class="stats-bar">
-  <div class="stats-inner">
-    <div class="stat">🔥 <strong id="deal-count">0</strong> deals</div>
-    <div class="stat">⏱️ Updated <strong id="last-update">just now</strong></div>
-    <div class="stat">🛒 Amazon, Flipkart & more</div>
-    <div class="visitor-badge">👁️ <span id="visitor-count">...</span> visitors today</div>
-  </div>
-</div>
-<div class="page-body">
-  <aside class="sidebar" id="about">
-    <div class="sidebar-card">
-      <h3>⚡ Why Us?</h3>
-      <div class="feature-item"><div class="feature-icon-sm">⚡</div><div><h4>Updated Every 5 Min</h4><p>Never miss a flash sale or lightning deal</p></div></div>
-      <div class="feature-item"><div class="feature-icon-sm">🏪</div><div><h4>10+ Sources</h4><p>Amazon, Flipkart, Myntra, Ajio & more</p></div></div>
-      <div class="feature-item"><div class="feature-icon-sm">💯</div><div><h4>100% Free</h4><p>No signup, no spam, just deals</p></div></div>
-      <div class="feature-item"><div class="feature-icon-sm">📲</div><div><h4>Telegram Alerts</h4><p>Instant notifications on your phone</p></div></div>
-      <div class="feature-item"><div class="feature-icon-sm">🤖</div><div><h4>AI Powered</h4><p>Smart deal detection & filtering</p></div></div>
-    </div>
-    <div class="sidebar-card">
-      <h3>🤔 About Us</h3>
-      <p class="about-text">Crazy Online Deals is India's fastest deal aggregator. We hunt the best discounts from Amazon India, Flipkart, Myntra, Ajio and dozens of other stores so you don't have to.</p>
-      <p class="about-text" style="margin-top:8px;">Our affiliate links help us keep this service free for everyone.</p>
-    </div>
-    <div class="sidebar-card" style="background: linear-gradient(135deg, #0F2027, #203A43); border-color: rgba(34,158,217,0.3);">
-      <h3 style="color:#229ED9;">📲 Get Alerts!</h3>
-      <p class="about-text" style="margin-bottom:12px;">Join our Telegram channel for instant deal notifications!</p>
-      <a href="https://t.me/hugediscountshop" target="_blank" style="display:block; text-align:center; background:#229ED9; color:white; text-decoration:none; font-weight:800; font-size:13px; padding:10px; border-radius:10px;">
-        ✈️ @hugediscountshop
-      </a>
-    </div>
-  </aside>
-  <main class="main-content" id="deals">
-    <div class="filters">
-      <button class="filter-btn active" onclick="filterDeals('all', this)">🔥 All Deals</button>
-      <button class="filter-btn" onclick="filterDeals('amazon', this)">📦 Amazon</button>
-      <button class="filter-btn" onclick="filterDeals('flipkart', this)">🛍️ Flipkart</button>
-      <button class="filter-btn" onclick="filterDeals('other', this)">🏪 Others</button>
-    </div>
-    <div class="section-title">⚡ TODAY'S HOT DEALS</div>
-    <div class="deals-grid" id="deals-grid">
-      <div class="loading">
-        <div class="loading-spinner"></div>
-        <p>Loading deals...</p>
-      </div>
-    </div>
-  </main>
-</div>
-<footer>
-  <p>© 2026 CrazyOnlineDeals.in • <a href="https://t.me/hugediscountshop">Telegram</a> • Made with ❤️ in India 🇮🇳</p>
-  <p style="margin-top:6px;">Prices subject to change. We may earn affiliate commission on purchases.</p>
-</footer>
-
 <script>
 let allDeals = [];
 
-// ── Visitor counter (Safeguarded against privacy blockers) ──
+// ── Visitor counter ──
 function updateVisitorCount() {
   try {
     const today = new Date().toDateString();
@@ -587,7 +26,7 @@ updateVisitorCount();
 // ── Helpers ──
 function getStore(text, url) {
   const t = (text + url).toLowerCase();
-  if (t.includes('amazon') || t.includes('amzn') || (t.includes('tinyurl') && t.includes('amazon'))) return 'amazon';
+  if (t.includes('amazon') || t.includes('amzn')) return 'amazon';
   if (t.includes('flipkart') || t.includes('shopsy') || t.includes('fktr')) return 'flipkart';
   if (t.includes('myntra')) return 'myntra';
   if (t.includes('ajio')) return 'ajio';
@@ -612,7 +51,7 @@ function getStoreBadge(store) {
 function timeAgo(ts) {
   if(!ts) return 'recently';
   const dateObj = new Date(ts);
-  if (isNaN(dateObj)) return 'recently'; // Protection against malformed dates
+  if (isNaN(dateObj)) return 'recently';
   const diff = Math.floor((Date.now() - dateObj) / 1000);
   if (diff < 60)   return 'just now';
   if (diff < 3600) return Math.floor(diff/60) + 'm ago';
@@ -627,28 +66,38 @@ function cleanTitle(text) {
     .replace(/🔗\s*/g, '')                           
     .replace(/🛒 Deals by @\S+/g, '')                 
     .replace(/\*\*/g, '')
-    .replace(/[\w\s\.]{1,25} : /g, ' ')              
-    .replace(/[\w\s\.]{1,25}:\s*$/gm, '')            
-    .replace(/\s{2,}/g, ' ')
-    .replace(/^\s*[\r\n]/gm, '')                     
-    .trim().substring(0, 120) || 'Hot Deal!';
+    .trim().substring(0, 100) || 'Hot Deal!';
 }
 
-// ── ASIN & Image Extractors (Moved outside loop for safety) ──
+// ── IMPROVED ASIN & IMAGE LOGIC ──
 function getAsin(url) {
-  const m = (url||'').match(/\/dp\/([A-Z0-9]{10})/);
+  if (!url) return null;
+  // Improved regex to catch /dp/, /gp/product/, /gp/aw/d/ etc.
+  const m = url.match(/(?:dp|gp\/product|gp\/aw\/d|asin)\/([A-Z0-9]{10})/i);
   return m ? m[1] : null;
 }
 
 function getBestImage(deal, store) {
   if (!deal) return '';
+  
+  // 1. If the scraper provided a valid image, use it
   let img = deal.image || '';
-  if (!img || img.includes('ws-in.amazon-adsystem')) {
+  
+  // 2. If it's Amazon, try to generate a high-quality image URL from ASIN
+  // This works even if the scraper didn't find an image!
+  if (store === 'amazon') {
     const asin = getAsin(deal.url);
     if (asin) {
-      img = `https://images-na.ssl-images-amazon.com/images/I/${asin}._SL300_.jpg`;
+      // Using the more reliable m.media-amazon.com endpoint
+      return `https://m.media-amazon.com/images/P/${asin}.01._SCLZZZZZZZ_AC_SY400_.jpg`;
     }
   }
+  
+  // 3. Clean up common broken image patterns from scrapers
+  if (img.includes('ws-in.amazon-adsystem') || img.length < 5) {
+      return '';
+  }
+
   return img;
 }
 
@@ -661,48 +110,37 @@ const storeColors = {
 function renderDeals(deals) {
   const grid = document.getElementById('deals-grid');
   
-  // Failsafe: if the JSON is broken or not an array
   if (!deals || !Array.isArray(deals)) {
-     grid.innerHTML = '<div class="loading"><p>⚠️ Error formatting data.</p></div>';
+     grid.innerHTML = '<div class="loading"><p>⚠️ Error loading deals.</p></div>';
      return;
   }
 
   if (!deals.length) {
-    grid.innerHTML = '<div class="loading"><p>🔍 No deals found. Check back soon!</p></div>';
+    grid.innerHTML = '<div class="loading"><p>🔍 No deals found.</p></div>';
     return;
   }
   
   grid.innerHTML = deals.map((deal, i) => {
-    if (!deal) return ''; // Skip empty objects
-
     const store = getStore(deal.text||'', deal.url||'');
     const bestImage = getBestImage(deal, store);
     const bg = storeColors[store] || storeColors.other;
     
-    let imageHtml = '';
-    if (bestImage) {
-      imageHtml = `
+    // Logic: If image exists, show it. If it fails to load (404), hide it and show placeholder.
+    let imageHtml = `
       <div class="card-img-wrap">
-        <img src="${bestImage}" 
-             alt="Product" 
-             loading="lazy" 
-             onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" 
-        />
-        <div class="card-img-placeholder" style="display:none; background:${bg}">
+        ${bestImage ? `
+          <img src="${bestImage}" 
+               alt="Product" 
+               loading="lazy" 
+               onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" 
+          />` : ''}
+        <div class="card-img-placeholder" style="${bestImage ? 'display:none;' : 'display:flex;'} background:${bg}">
           <span>${store.toUpperCase()} DEAL</span>
         </div>
       </div>`;
-    } else {
-      imageHtml = `
-      <div class="card-img-wrap">
-        <div class="card-img-placeholder" style="background:${bg}">
-          <span>${store.toUpperCase()} DEAL</span>
-        </div>
-      </div>`;
-    }
 
     return `
-    <div class="deal-card" style="animation-delay:${i * 0.04}s">
+    <div class="deal-card" style="animation-delay:${i * 0.03}s">
       ${imageHtml}
       <div class="card-header">
         ${getStoreBadge(store)}
@@ -712,7 +150,7 @@ function renderDeals(deals) {
         <p class="deal-title">${cleanTitle(deal.text)}</p>
       </div>
       <div class="card-footer">
-        <a href="${deal.url||'javascript:void(0)'}" ${!deal.url ? 'onclick="return false;"' : ''} target="_blank" rel="nofollow" class="deal-link">
+        <a href="${deal.url||'#'}" target="_blank" rel="nofollow" class="deal-link">
           🛒 Grab This Deal →
         </a>
       </div>
@@ -730,36 +168,22 @@ function filterDeals(type, btn) {
 function searchDeals(query) {
   const q = query.toLowerCase().trim();
   if (!q) { renderDeals(allDeals); return; }
-  const filtered = allDeals.filter(d => {
-    const text = cleanTitle(d.text || '').toLowerCase();
-    return text.includes(q);
-  });
+  const filtered = allDeals.filter(d => (d.text || '').toLowerCase().includes(q));
   renderDeals(filtered);
-  document.getElementById('deal-count').textContent = filtered.length + (filtered.length < allDeals.length ? ' found' : '');
 }
 
 async function loadDeals() {
   try {
     const res = await fetch('deals.json?t=' + Date.now());
-    if (!res.ok) throw new Error('Network error or file missing');
-    
     allDeals = await res.json();
     document.getElementById('deal-count').textContent = allDeals.length;
-    
-    if (allDeals && allDeals[0]) {
-      document.getElementById('last-update').textContent = timeAgo(allDeals[0].timestamp);
-    }
-    
+    if (allDeals[0]) document.getElementById('last-update').textContent = timeAgo(allDeals[0].timestamp);
     renderDeals(allDeals);
   } catch(e) {
-    document.getElementById('deals-grid').innerHTML = '<div class="loading"><p>⏳ Deals are being collected...<br>Check back in a few minutes!</p></div>';
-    console.error("Deal fetch failed:", e);
+    document.getElementById('deals-grid').innerHTML = '<div class="loading"><p>⏳ Refreshing deals...</p></div>';
   }
 }
 
-// Boot up
 loadDeals();
-setInterval(loadDeals, 30000); 
+setInterval(loadDeals, 60000); 
 </script>
-</body>
-</html>
