@@ -3,6 +3,10 @@ name: data-sync
 on:
   workflow_dispatch:  # triggered by cron-job.org every 5 min
 
+concurrency:
+  group: deal-bot-session
+  cancel-in-progress: false   # wait for current run to finish, don't cancel it
+
 permissions:
   contents: write
 
