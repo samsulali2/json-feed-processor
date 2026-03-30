@@ -120,11 +120,16 @@ function getAsin(url) {
 
 // Main: Determine best image
 function getBestImage(deal, store) {
+  // Always prefer stored image URL (set by main.py — Amazon Associates widget, Telegram CDN, Telegraph, etc.)
+  if (deal.image && deal.image.startsWith('http')) return deal.image;
+
+  // Fallback: Amazon Associates widget URL built from affiliate link ASIN
   if (store === 'amazon') {
     const asin = getAsin(deal.url);
-    if (asin) return `https://m.media-amazon.com/images/P/${asin}.01._SCLZZZZZZZ_AC_SY400_.jpg`;
+    if (asin) return `https://ws-in.amazon-adsystem.com/widgets/q?_encoding=UTF8&ASIN=${asin}&Format=_SL500_&ID=AsinImage&MarketPlace=IN&ServiceVersion=20070822&WS=1`;
   }
-  return deal.image || '';
+
+  return '';
 }
 
 function renderDeals(deals) {
