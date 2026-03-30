@@ -185,17 +185,12 @@ def get_asin(url):
 
 def get_amazon_real_image_url(asin):
     """
-    Amazon Associates image widget — returns REAL product photo.
-    No watermarks, no screenshots, official Amazon image.
-    URL is publicly accessible from any browser + GitHub Actions.
-    Format: _SL500_ = 500px, _SL250_ = 250px
+    Get real Amazon product image by scraping og:image from the product page.
+    The adsystem widget URL is a tracking redirect, not a direct image URL.
     """
     if not asin:
         return ''
-    return (f"https://ws-in.amazon-adsystem.com/widgets/q"
-            f"?_encoding=UTF8&ASIN={asin}&Format=_SL500_"
-            f"&ID=AsinImage&MarketPlace=IN&ServiceVersion=20070822&WS=1"
-            f"&tag={AMAZON_TAG}")
+    return scrape_product_image(f"https://www.amazon.in/dp/{asin}")
 
 def make_amazon_affiliate(url):
     asin = get_asin(url)
@@ -308,7 +303,7 @@ def scrape_product_image(product_url):
             m = re.search(r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+property=["\']og:image["\']', html)
         if m:
             img = m.group(1)
-            if img.startswith('http') and 'amazon' in img or 'flipkart' in img or 'fkimg' in img:
+            if img.startswith('http') and ('amazon' in img or 'flipkart' in img or 'fkimg' in img or 'm.media' in img or 'ssl-images' in img):
                 print(f"    🔍 og:image: {img[:70]}")
                 return img
 
@@ -743,8 +738,8 @@ async def run():
 
                     print(f"    affiliate: {affiliate_url or 'NONE'}")
 
-                    if not affiliate_url and not has_photo:
-                        print("    skip: no affiliate and no photo"); continue
+                    if not affiliate_url:
+                        print("    skip: no affiliate URL"); continue
 
                     # 3. Build clean text
                     clean = build_clean_text(msg, affiliate_url)
@@ -788,9 +783,12 @@ async def run():
                     elif has_photo:
                         # Non-Amazon deal with photo — use Telethon
                         img_bytes, telegraph_url = await get_telethon_photo_bytes(client, msg)
-                        img_saved = telegraph_url
+                        img_saved = telegraph_url  # upgraded to tg_url after posting
                         if not img_bytes:
                             print("    📷 Telethon failed")
+                            if product_url:
+                                real_img_url = scrape_product_image(product_url)
+                                img_saved = real_img_url
 
                     elif product_url:
                         # Last resort: scrape product page
