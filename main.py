@@ -190,6 +190,18 @@ def get_amazon_real_image_url(asin):
     """
     if not asin:
         return ''
+    # Try multiple standard Amazon image URL patterns directly
+    # These work without scraping
+    for size in ['_SL500_', '_SL300_', '_SX679_']:
+        url = f"https://ws-in.amazon-adsystem.com/widgets/q?_encoding=UTF8&ASIN={asin}&Format=_SL500_&ID=AsinImage&MarketPlace=IN&ServiceVersion=20070822&WS=1&tag={AMAZON_TAG}&language=en_IN"
+        try:
+            r = requests.head(url, timeout=8, headers=BROWSE_HEADERS, allow_redirects=True)
+            if r.status_code == 200 and 'image' in r.headers.get('content-type', ''):
+                print(f"    🔍 adsystem image: {r.url[:70]}")
+                return r.url
+        except Exception:
+            pass
+    # Fallback: scrape
     return scrape_product_image(f"https://www.amazon.in/dp/{asin}")
 
 def make_amazon_affiliate(url):
