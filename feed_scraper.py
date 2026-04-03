@@ -63,9 +63,13 @@ def fetch_rss_via_proxy(rss_url, count=15):
     Returns list of items: [{title, link, thumbnail, description, pubDate}]
     """
     try:
+        params = {"rss_url": rss_url, "count": count, "order_by": "pubDate"}
+        rss2json_key = os.environ.get("RSS2JSON_API_KEY", "").strip()
+        if rss2json_key:
+            params["api_key"] = rss2json_key
         r = requests.get(
             RSS2JSON,
-            params={"rss_url": rss_url, "count": count, "order_by": "pubDate"},
+            params=params,
             headers=BROWSE_HEADERS,
             timeout=15,
         )
