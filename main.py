@@ -690,7 +690,7 @@ async def run():
             last_id     = state.get(channel, 0)
             new_last_id = last_id
             found = count = 0
-            limit = 5 if last_id == 0 else 20
+            limit = 5 if last_id == 0 else 50
 
             print(f"\n{'─'*55}")
             print(f"  {channel}  last_id={last_id}  limit={limit}")
