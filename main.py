@@ -338,6 +338,29 @@ def scrape_product_image(product_url):
         print(f"    🔍 scrape failed: {e}")
     return ''
 
+def upload_to_imgbb(image_url):
+    """Upload image URL to imgbb and get permanent hosted URL."""
+    imgbb_key = os.environ.get("IMGBB_API_KEY", "").strip()
+    if not imgbb_key or not image_url:
+        return image_url  # fallback to original URL
+    try:
+        r = requests.post(
+            "https://api.imgbb.com/1/upload",
+            params={"key": imgbb_key},
+            data={"image": image_url},
+            timeout=15,
+        )
+        if r.status_code == 200:
+            data = r.json()
+            if data.get("success"):
+                hosted = data["data"]["url"]
+                print(f"    🖼️ imgbb hosted: {hosted[:70]}")
+                return hosted
+        print(f"    🖼️ imgbb failed: {r.text[:80]}")
+    except Exception as e:
+        print(f"    🖼️ imgbb error: {e}")
+    return image_url  # fallback to original
+
 async def get_telethon_photo_bytes(tg_client, msg):
     """
     Download photo bytes directly via Telethon.
@@ -840,7 +863,8 @@ async def run():
                         img_saved = tg_url
                         print(f"    📷 website: Telegram CDN ✅")
                     elif img_saved:
-                        print(f"    📷 website: fallback URL ✅ {img_saved[:55]}")
+                      img_saved = upload_to_imgbb(img_saved)  
+                      print(f"    📷 website: fallback URL ✅ {img_saved[:55]}")
                     else:
                         print(f"    📷 website: no image")
 
