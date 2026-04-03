@@ -113,6 +113,7 @@ def check_deals_freshness():
         deals = r.json()
         if not deals:
             send_alert("⚠️ deals.json is empty — bot may not have posted yet")
+            trigger_bot_workflow()  
             return False
 
         # Check age of newest deal
