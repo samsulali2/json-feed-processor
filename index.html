@@ -123,12 +123,16 @@ function isValidImageUrl(url){
 }
 
 function getBestImage(deal,store){
-  // Use stored URL if it's a real direct image
   if(isValidImageUrl(deal.image)) return deal.image;
-  // Amazon fallback: construct CDN URL from ASIN in affiliate URL
+  // Try extracting ASIN from text — bot stores full Amazon URL in message text
   if(store==='amazon'){
-    const asin=getAsin(deal.url);
-    if(asin) return `https://m.media-amazon.com/images/P/${asin}.01._SL500_.jpg`;
+    const fullText = deal.text || '';
+    // Look for amazon.in/dp/ASIN pattern anywhere in the deal text
+    const asinFromText = getAsin(fullText);
+    if(asinFromText) return `https://m.media-amazon.com/images/P/${asinFromText}.01._SL500_.jpg`;
+    // Also try from url field
+    const asinFromUrl = getAsin(deal.url);
+    if(asinFromUrl) return `https://m.media-amazon.com/images/P/${asinFromUrl}.01._SL500_.jpg`;
   }
   return '';
 }
