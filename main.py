@@ -888,7 +888,7 @@ async def run():
                         mode = '📷 bytes' if img_bytes else ('📷 url' if real_img_url else '📝 text')
                         print(f"    ✅ POSTED {mode}")
                         posted_hashes.add(msg_hash)
-                        deals = add_deal(deals, final_text, affiliate_url or '', channel, img_saved)
+                        deals = add_deal(deals, final_text, affiliate_url or '', channel, img_saved, product_url)
                         found += 1
                         total += 1
                         time.sleep(random.uniform(2.0, 4.0))
@@ -965,7 +965,7 @@ async def run():
                 if ok_post:
                     msg_hash = hashlib.md5(feed_msg.text[:200].encode()).hexdigest()[:10]
                     posted_hashes.add(msg_hash)
-                    deals = add_deal(deals, final_text, affiliate_url, feed_source, img_saved)
+                    deals = add_deal(deals, final_text, affiliate_url, feed_source, img_saved, product_url)
                     total += 1
                     print(f"    ✅ [feed] POSTED from {feed_source} | img={img_saved[:40] if img_saved else 'none'}")
                     time.sleep(random.uniform(2.0, 3.5))
