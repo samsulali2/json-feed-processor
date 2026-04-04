@@ -695,10 +695,11 @@ def save_json(path, data):
     with open(path, 'w') as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
-def add_deal(deals, text, url, source, image_url):
+def add_deal(deals, text, url, source, image_url, product_url=''):
     deals.insert(0, {
         'text':      text,
         'url':       url or '',
+        'product_url': product_url or '',  # full Amazon/Flipkart URL for image extraction
         'source':    source,
         'image':     image_url or '',
         'timestamp': datetime.now(timezone.utc).isoformat(),
