@@ -43,8 +43,9 @@ header{background:linear-gradient(160deg,#0a0820 0%,#141b3a 50%,#0a0820 100%);bo
 .deal-title{font-size:13px;font-weight:700;line-height:1.4;color:var(--text);display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;flex:1}
 .deal-price{font-size:17px;font-weight:800;color:var(--green)}
 .deal-extra{font-size:11px;color:var(--muted);line-height:1.4}
-.deal-link{display:block;margin:0 12px 12px;background:rgba(34,158,217,0.15);color:#229ED9;text-align:center;padding:8px;text-decoration:none;font-weight:700;border-radius:8px;font-size:13px;border:1px solid rgba(34,158,217,0.3);transition:0.2s}
-.deal-link:hover{background:rgba(34,158,217,0.25);border-color:#229ED9}
+.deal-link{display:inline-block;margin:0 12px 12px;background:#229ED9;color:#fff;text-align:center;padding:6px 18px;text-decoration:none;font-weight:700;border-radius:6px;font-size:12px;border:none;transition:transform 0.15s,box-shadow 0.15s;animation:pulsebtn 2.5s ease-in-out infinite}
+.deal-link:hover{transform:translateY(-2px);box-shadow:0 4px 14px rgba(34,158,217,0.5);animation:none}
+@keyframes pulsebtn{0%,100%{box-shadow:0 0 0 0 rgba(34,158,217,0.4)}50%{box-shadow:0 0 0 6px rgba(34,158,217,0)}}
 .loading{grid-column:1/-1;text-align:center;padding:60px 20px;color:var(--muted);font-size:16px}
 .loading-spinner{width:40px;height:40px;border:3px solid rgba(255,107,0,0.2);border-top-color:var(--orange);border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto 15px}
 @keyframes spin{to{transform:rotate(360deg)}}
