@@ -90,8 +90,8 @@ header{background:linear-gradient(160deg,#0a0820 0%,#141b3a 50%,#0a0820 100%);bo
 <script>
 let allDeals=[], currentFilter='all';
 
-function getStore(text,url){
-  const t=((text||'')+(url||'')).toLowerCase();
+function getStore(text, url, productUrl){
+  const t = ((text||'')+(url||'')+(productUrl||'')).toLowerCase();
   if(t.includes('amazon')||t.includes('amzn')) return 'amazon';
   if(t.includes('flipkart')||t.includes('fktr')||t.includes('shopsy')) return 'flipkart';
   if(t.includes('myntra')) return 'myntra';
@@ -107,29 +107,74 @@ function timeAgo(ts){
   return Math.floor(d/86400)+'d ago';
 }
 
-function getAsin(url){
-  if(!url) return null;
-  const m=url.match(/(?:dp|gp\/product|gp\/aw\/d|asin)\/([A-Z0-9]{10})/i);
-  return m?m[1]:null;
+function getAsin(str){
+  if(!str) return null;
+  // Match /dp/ASIN or /gp/product/ASIN patterns
+  const m = str.match(/\/(?:dp|gp\/product|gp\/aw\/d|d)\/([A-Z0-9]{10})(?:[/?&]|$)/i);
+  if(m) return m[1];
+  // Match query param ASIN=...
+  const m2 = str.match(/[?&](?:ASIN|creativeASIN)=([A-Z0-9]{10})/i);
+  return m2 ? m2[1] : null;
 }
 
 function isValidImageUrl(url){
-  if(!url||!url.startsWith('http')) return false;
-  // Amazon adsystem = tracking redirect widget, not a real image URL
+  if(!url || !url.startsWith('http')) return false;
+  // adsystem is a tracking redirect widget, not a real image
   if(url.includes('amazon-adsystem.com')) return false;
-  // Telegram file URLs expire after a few days
+  // Telegram file URLs expire — never use them
   if(url.includes('api.telegram.org/file/bot')) return false;
   return true;
 }
 
-function getBestImage(deal,store){
+// Amazon CDN fallback patterns tried in order by the browser
+// The browser is NOT blocked by Amazon CDN — only GitHub Actions is
+function getAmazonCdnUrls(asin){
+  return [
+    `https://m.media-amazon.com/images/P/${asin}.01._SL500_.jpg`,
+    `https://m.media-amazon.com/images/P/${asin}.01._SL300_.jpg`,
+    `https://m.media-amazon.com/images/P/${asin}.01._SX679_.jpg`,
+    `https://m.media-amazon.com/images/P/${asin}.01.jpg`,
+  ];
+}
+
+function getBestImage(deal, store){
+  // 1. Use imgbb/ibb hosted URL — permanent, fastest, most reliable
   if(isValidImageUrl(deal.image)) return deal.image;
-  if(store==='amazon'){
-    // product_url has the full amazon.in/dp/ASIN URL — most reliable
-    const asin = getAsin(deal.product_url) || getAsin(deal.text) || getAsin(deal.url);
-    if(asin) return `https://m.media-amazon.com/images/P/${asin}.01._SL500_.jpg`;
+
+  // 2. Amazon deals: extract ASIN and build CDN URL directly in browser
+  //    Check product_url first (full amazon.in URL), then text, then url field
+  if(store === 'amazon'){
+    const asin = getAsin(deal.product_url)
+              || getAsin(deal.text)
+              || getAsin(deal.url);
+    if(asin) return getAmazonCdnUrls(asin)[0];
   }
+
   return '';
+}
+
+// Called by onerror on img elements — tries multiple Amazon CDN patterns
+// then gives up and shows emoji placeholder
+function tryFallbackImage(imgEl, productUrl, dealText, dealUrl, store){
+  if(store === 'amazon'){
+    const asin = getAsin(productUrl) || getAsin(dealText) || getAsin(dealUrl);
+    if(asin){
+      const fallbacks = getAmazonCdnUrls(asin);
+      const idx = parseInt(imgEl.dataset.fbIdx || '0');
+      // Skip index 0 — that's what already failed
+      const nextIdx = idx + 1;
+      if(nextIdx < fallbacks.length){
+        imgEl.dataset.fbIdx = nextIdx;
+        // Set new onerror before changing src
+        imgEl.onerror = () => tryFallbackImage(imgEl, productUrl, dealText, dealUrl, store);
+        imgEl.src = fallbacks[nextIdx];
+        return;
+      }
+    }
+  }
+  // All fallbacks exhausted — show emoji placeholder
+  const emoji = store==='amazon'?'🛒':store==='flipkart'?'🛍️':store==='myntra'?'👗':'🏷️';
+  imgEl.parentElement.innerHTML = `<div class="card-img-placeholder">${emoji}</div>`;
 }
 
 function extractTitle(text){
@@ -158,6 +203,11 @@ function getEmoji(store){
   return store==='amazon'?'🛒':store==='flipkart'?'🛍️':store==='myntra'?'👗':'🏷️';
 }
 
+function escAttr(s){
+  // Escape for use inside HTML attribute strings
+  return (s||'').replace(/'/g,"&#39;").replace(/"/g,'&quot;');
+}
+
 function renderDeals(deals){
   const grid=document.getElementById('deals-grid');
   if(!deals||deals.length===0){
@@ -165,18 +215,30 @@ function renderDeals(deals){
     return;
   }
   grid.innerHTML=deals.map(deal=>{
-    const store=getStore(deal.text,deal.url);
-    const imgUrl=getBestImage(deal,store);
-    const title=extractTitle(deal.text);
-    const price=extractPrice(deal.text);
-    const extra=extractExtra(deal.text);
-    const emoji=getEmoji(store);
+    const store    = getStore(deal.text, deal.url, deal.product_url);
+    const imgUrl   = getBestImage(deal, store);
+    const title    = extractTitle(deal.text);
+    const price    = extractPrice(deal.text);
+    const extra    = extractExtra(deal.text);
+    const emoji    = getEmoji(store);
+
+    // Escape values used inside onerror attribute string
+    const eProdUrl = escAttr(deal.product_url || '');
+    const eText    = escAttr((deal.text || '').substring(0, 200));
+    const eUrl     = escAttr(deal.url || '');
+
     return `
       <div class="deal-card">
         <div class="card-img-wrap">
           ${imgUrl
-            ?`<img src="${imgUrl}" loading="lazy" onerror="this.parentElement.innerHTML='<div class=card-img-placeholder>${emoji}</div>'">`
-            :`<div class="card-img-placeholder">${emoji}</div>`}
+            ? `<img
+                src="${imgUrl}"
+                loading="lazy"
+                data-fb-idx="0"
+                onerror="tryFallbackImage(this,'${eProdUrl}','${eText}','${eUrl}','${store}')"
+              >`
+            : `<div class="card-img-placeholder">${emoji}</div>`
+          }
         </div>
         <div class="card-badges">
           <span class="store-badge badge-${store}">${store}</span>
@@ -184,15 +246,15 @@ function renderDeals(deals){
         </div>
         <div class="card-body">
           <div class="deal-title">${title}</div>
-          ${price?`<div class="deal-price">${price}</div>`:''}
-          ${extra?`<div class="deal-extra">${extra}</div>`:''}
+          ${price ? `<div class="deal-price">${price}</div>` : ''}
+          ${extra ? `<div class="deal-extra">${extra}</div>`  : ''}
         </div>
         <a href="${deal.url||'#'}" target="_blank" rel="noopener" class="deal-link">Buy Now →</a>
       </div>`;
   }).join('');
 }
 
-function filterDeals(store,btn){
+function filterDeals(store, btn){
   currentFilter=store;
   document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');
@@ -203,7 +265,7 @@ function searchDeals(q){ applyFilters(q.toLowerCase()); }
 
 function applyFilters(query){
   let f=allDeals;
-  if(currentFilter!=='all') f=f.filter(d=>getStore(d.text,d.url)===currentFilter);
+  if(currentFilter!=='all') f=f.filter(d=>getStore(d.text,d.url,d.product_url)===currentFilter);
   if(query) f=f.filter(d=>(d.text||'').toLowerCase().includes(query));
   renderDeals(f);
 }
@@ -228,7 +290,7 @@ async function loadDeals(){
 }
 
 loadDeals();
-setInterval(loadDeals,60000);
+setInterval(loadDeals, 60000);
 </script>
 </body>
 </html>
