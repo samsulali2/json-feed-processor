@@ -42,8 +42,8 @@ jobs:
           A7: ${{ secrets.AMAZON_AFFILIATE_ID }}
           A8: ${{ secrets.CUELINKS_API_KEY }}
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
-          RSS2JSON_API_KEY: ${{ secrets.RSS2JSON_API_KEY }}
           IMGBB_API_KEY: ${{ secrets.IMGBB_API_KEY }}
+          RSS2JSON_API_KEY: ${{ secrets.RSS2JSON_API_KEY }}
         run: python main.py
 
       # Commit deals.json (website) + last_seen.json (state) back to repo
