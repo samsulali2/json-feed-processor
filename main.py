@@ -1,21 +1,17 @@
 """
-Telegram Affiliate Deal Bot  v10.0 — DEFINITIVE IMAGE FIX
-==========================================================
-Root cause of all image issues:
-  get_amazon_image_cdn() generated m.media-amazon.com/images/I/{ASIN}._SL500_.jpg
-  BUT Amazon image filenames are NOT ASINs — this URL always 404s.
-  Telegram's sendPhoto with a 404 URL fails → falls back to text → no image.
-
-Definitive fix:
-  has_photo=True  → Telethon downloads bytes → sendPhoto(bytes) [always works]
-                 → Also upload to Telegraph → URL stored for website
-  has_photo=False → Scrape real og:image from Amazon product page
-                 → sendPhoto(url) with real URL → Telegram fetches it
-                 → Same URL stored for website
-  No image at all → text-only post (honest, not fake)
+Telegram Affiliate Deal Bot  v11.0
+===================================
+Changes from v10.0:
+  - upload_to_imgbb() now handles BOTH bytes and URL strings
+  - tg_url (Telegram CDN, expires ~1hr) is now re-hosted on imgbb
+  - img_bytes (Telethon photos) uploaded directly to imgbb as base64
+  - get_amazon_real_image_url() adsystem loop now actually varies the size param
+  - Web feeds section now uploads images to imgbb too
+  - traceback shadowing bug fixed (was causing UnboundLocalError)
+  - amazonindiaassociates added as supported source (affiliate tag auto-replaced)
 """
 
-import os, re, json, asyncio, requests, hashlib, io, random, time, traceback
+import os, re, json, asyncio, requests, hashlib, io, random, time, traceback, base64
 import urllib.parse
 from datetime import datetime, timezone
 from telethon import TelegramClient
@@ -27,7 +23,7 @@ try:
 except ImportError:
     WEB_FEEDS_ENABLED = False
 
-VERSION = "10.0"
+VERSION = "11.0"
 
 # ── Config ────────────────────────────────────────────────────────────────────
 def _require(key):
@@ -45,6 +41,7 @@ SOURCE_CHANNELS = [c.strip().lstrip('@') for c in _require("A6").split(",") if c
 AMAZON_TAG      = _require("A7")
 CUELINKS_KEY    = os.environ.get("A8", "").strip()
 GROQ_API_KEY    = os.environ.get("GROQ_API_KEY", "").strip()
+IMGBB_KEY       = os.environ.get("IMGBB_API_KEY", "").strip()
 
 STATE_FILE  = "last_seen.json"
 DEALS_FILE  = "deals.json"
@@ -112,11 +109,8 @@ def extract_text_urls(text):
         if not url:
             continue
         before = text[:pos]
-        # Only skip truly isolated single-letter column headers: "X : https://"
-        # where X is a single letter preceded by whitespace or start of string
         if re.search(r'(?:^|\s)([a-zA-Z]) : $', before):
             continue
-        # Accept URLs preceded by whitespace or punctuation
         if pos == 0 or text[pos - 1] in ' \t\n\r([,:;=':
             results.append(url)
     return results
@@ -179,30 +173,8 @@ def expand_url_fully(url):
 def get_asin(url):
     m = re.search(r'/(?:dp|gp/product|d)/([A-Z0-9]{10})(?:[/?&]|$)', url or '')
     if m: return m.group(1)
-    # Also check query param (creativeASIN=...)
     m2 = re.search(r'[?&](?:creativeASIN|ASIN)=([A-Z0-9]{10})', url or '')
     return m2.group(1) if m2 else None
-
-def get_amazon_real_image_url(asin):
-    """
-    Get real Amazon product image by scraping og:image from the product page.
-    The adsystem widget URL is a tracking redirect, not a direct image URL.
-    """
-    if not asin:
-        return ''
-    # Try multiple standard Amazon image URL patterns directly
-    # These work without scraping
-    for size in ['_SL500_', '_SL300_', '_SX679_']:
-        url = f"https://ws-in.amazon-adsystem.com/widgets/q?_encoding=UTF8&ASIN={asin}&Format=_SL500_&ID=AsinImage&MarketPlace=IN&ServiceVersion=20070822&WS=1&tag={AMAZON_TAG}&language=en_IN"
-        try:
-            r = requests.head(url, timeout=8, headers=BROWSE_HEADERS, allow_redirects=True)
-            if r.status_code == 200 and 'image' in r.headers.get('content-type', ''):
-                print(f"    🔍 adsystem image: {r.url[:70]}")
-                return r.url
-        except Exception:
-            pass
-    # Fallback: scrape
-    return scrape_product_image(f"https://www.amazon.in/dp/{asin}")
 
 def make_amazon_affiliate(url):
     asin = get_asin(url)
@@ -245,7 +217,7 @@ def shorten(url):
     return url
 
 def resolve_to_affiliate(raw_url):
-    """Returns (affiliate_url, product_page_url). product_page_url is the real Amazon/Flipkart URL for image scraping."""
+    """Returns (affiliate_url, product_page_url)."""
     url = raw_url
     product_url = ''
 
@@ -289,16 +261,86 @@ def resolve_to_affiliate(raw_url):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# IMAGE — DEFINITIVE APPROACH
+# IMAGE UTILITIES
 # ─────────────────────────────────────────────────────────────────────────────
+
+def upload_to_imgbb(image_source):
+    """
+    Upload image to imgbb for permanent hosting.
+    Accepts either:
+      - bytes  → encodes as base64 and uploads directly
+      - str    → treated as image URL, imgbb fetches it
+    Returns permanent imgbb URL, or original string on failure.
+    Falls back gracefully if IMGBB_API_KEY is not set.
+    """
+    if not IMGBB_KEY:
+        return image_source if isinstance(image_source, str) else ''
+
+    if not image_source:
+        return ''
+
+    try:
+        if isinstance(image_source, bytes):
+            # Upload raw bytes as base64
+            payload = {"image": base64.b64encode(image_source).decode("utf-8")}
+        else:
+            # Upload by URL — imgbb fetches it
+            payload = {"image": image_source}
+
+        r = requests.post(
+            "https://api.imgbb.com/1/upload",
+            params={"key": IMGBB_KEY},
+            data=payload,
+            timeout=20,
+        )
+        if r.status_code == 200:
+            data = r.json()
+            if data.get("success"):
+                hosted = data["data"]["url"]
+                print(f"    🖼️ imgbb: {hosted[:70]}")
+                return hosted
+        print(f"    🖼️ imgbb failed ({r.status_code}): {r.text[:80]}")
+    except Exception as e:
+        print(f"    🖼️ imgbb error: {e}")
+
+    # Fallback: return original (URL string or empty)
+    return image_source if isinstance(image_source, str) else ''
+
+
+def get_amazon_real_image_url(asin):
+    """
+    Get Amazon product image URL.
+    Tries Amazon adsystem widget redirect (no scraping needed).
+    Falls back to scraping og:image from product page.
+    """
+    if not asin:
+        return ''
+
+    # Try adsystem widget — it redirects to the real CDN image
+    # FIX: actually vary the size parameter in the URL (was broken in v10)
+    for size in ['_SL500_', '_SL300_', '_SX679_']:
+        url = (
+            f"https://ws-in.amazon-adsystem.com/widgets/q"
+            f"?_encoding=UTF8&ASIN={asin}&Format={size}"
+            f"&ID=AsinImage&MarketPlace=IN&ServiceVersion=20070822"
+            f"&WS=1&tag={AMAZON_TAG}&language=en_IN"
+        )
+        try:
+            r = requests.head(url, timeout=8, headers=BROWSE_HEADERS, allow_redirects=True)
+            if r.status_code == 200 and 'image' in r.headers.get('content-type', ''):
+                print(f"    🔍 adsystem image ({size}): {r.url[:70]}")
+                return r.url
+        except Exception:
+            pass
+
+    # Fallback: scrape og:image from product page
+    return scrape_product_image(f"https://www.amazon.in/dp/{asin}")
+
 
 def scrape_product_image(product_url):
     """
-    Scrape the REAL product image URL from Amazon/Flipkart page.
-    Uses og:image meta tag — always the main product photo.
+    Scrape the product image URL from Amazon/Flipkart page via og:image.
     Returns image URL string or ''.
-    NOTE: Amazon product pages are accessible from GitHub Actions.
-          Only the CDN (m.media-amazon.com) is blocked, not amazon.in itself.
     """
     if not product_url:
         return ''
@@ -309,24 +351,24 @@ def scrape_product_image(product_url):
             return ''
         html = r.text
 
-        # Method 1: og:image meta tag (most reliable)
+        # Method 1: og:image meta tag
         m = re.search(r'<meta[^>]+property=["\']og:image["\'][^>]+content=["\']([^"\']+)["\']', html)
         if not m:
             m = re.search(r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+property=["\']og:image["\']', html)
         if m:
             img = m.group(1)
-            if img.startswith('http') and ('amazon' in img or 'flipkart' in img or 'fkimg' in img or 'm.media' in img or 'ssl-images' in img):
+            if img.startswith('http') and any(k in img for k in ('amazon', 'flipkart', 'fkimg', 'm.media', 'ssl-images')):
                 print(f"    🔍 og:image: {img[:70]}")
                 return img
 
-        # Method 2: Amazon's hiRes image data in page JS
+        # Method 2: Amazon hiRes image in page JS
         m = re.search(r'"large":"(https://m\.media-amazon\.com/images/I/[^"]+)"', html)
         if m:
             img = m.group(1)
             print(f"    🔍 large img: {img[:70]}")
             return img
 
-        # Method 3: landingImage
+        # Method 3: landingImage src
         m = re.search(r'id=["\']landingImage["\'][^>]+src=["\']([^"\']+)["\']', html)
         if m:
             img = m.group(1)
@@ -338,33 +380,12 @@ def scrape_product_image(product_url):
         print(f"    🔍 scrape failed: {e}")
     return ''
 
-def upload_to_imgbb(image_url):
-    """Upload image URL to imgbb and get permanent hosted URL."""
-    imgbb_key = os.environ.get("IMGBB_API_KEY", "").strip()
-    if not imgbb_key or not image_url:
-        return image_url  # fallback to original URL
-    try:
-        r = requests.post(
-            "https://api.imgbb.com/1/upload",
-            params={"key": imgbb_key},
-            data={"image": image_url},
-            timeout=15,
-        )
-        if r.status_code == 200:
-            data = r.json()
-            if data.get("success"):
-                hosted = data["data"]["url"]
-                print(f"    🖼️ imgbb hosted: {hosted[:70]}")
-                return hosted
-        print(f"    🖼️ imgbb failed: {r.text[:80]}")
-    except Exception as e:
-        print(f"    🖼️ imgbb error: {e}")
-    return image_url  # fallback to original
 
 async def get_telethon_photo_bytes(tg_client, msg):
     """
     Download photo bytes directly via Telethon.
-    Returns (bytes, '') — bytes for sending, empty string (Telegraph upload is optional).
+    Returns (bytes, telegraph_url).
+    telegraph_url is a bonus — main path now uses imgbb instead.
     """
     if not getattr(msg, 'photo', None):
         return None, ''
@@ -375,12 +396,14 @@ async def get_telethon_photo_bytes(tg_client, msg):
             return None, ''
         print(f"    📷 {len(data)//1024}KB via Telethon ✅")
 
-        # Try Telegraph upload for website URL (non-critical — don't let failure stop posting)
+        # Try Telegraph as bonus (non-critical)
         telegraph_url = ''
         try:
-            r = requests.post('https://telegra.ph/upload',
-                              files={'file': ('p.jpg', io.BytesIO(data), 'image/jpeg')},
-                              timeout=12)
+            r = requests.post(
+                'https://telegra.ph/upload',
+                files={'file': ('p.jpg', io.BytesIO(data), 'image/jpeg')},
+                timeout=12,
+            )
             if r.status_code == 200:
                 res = r.json()
                 if isinstance(res, list) and res:
@@ -424,25 +447,21 @@ def build_clean_text(msg, affiliate_url):
         if re.match(r'^#\w', s): continue
         if re.match(r'^@\w', s): continue
 
-        # Strip ALL shortener/source URLs inline from this line
-        # e.g. "Fiama : https://bitli.store/9t" → "Fiama : "
         line_cleaned = line
         for u in extract_text_urls(s):
             if is_junk_url(u):
                 line_cleaned = line_cleaned.replace(u, '')
 
         s_cleaned = line_cleaned.strip()
-
-        # Skip line if nothing meaningful left after URL removal
         if not s_cleaned:
             continue
 
-        # Skip line if it only had junk URLs (original check still useful)
         line_urls = extract_text_urls(s)
         if line_urls and all(is_junk_url(u) for u in line_urls):
             continue
 
         clean.append(line_cleaned)
+
     result = re.sub(r'\n{3,}', '\n\n', '\n'.join(clean)).strip()
     result = sanitize_text(result, affiliate_url)
     final = []
@@ -542,17 +561,22 @@ def groq_quality_check(text, affiliate_url):
     """Advisory only — never blocks posting."""
     if not GROQ_API_KEY: return True, "no key"
     snippet = text.split('🔗')[0].strip()[:400]
-    prompt = (f'Check this deal post. Reply ONLY with JSON {{"ok":true/false,"reason":"one line"}}.\n'
-              f'Reject if: contains raw HTML tags or raw source site URLs (desidime.com/dealsmagnet.com).\n'
-              f'Do NOT reject for: channel names, product names, tinyurl links.\n\nPost:\n{snippet}')
+    prompt = (
+        f'Check this deal post. Reply ONLY with JSON {{"ok":true/false,"reason":"one line"}}.\n'
+        f'Reject if: contains raw HTML tags or raw source site URLs (desidime.com/dealsmagnet.com).\n'
+        f'Do NOT reject for: channel names, product names, tinyurl links.\n\nPost:\n{snippet}'
+    )
     try:
         r = requests.post(
             "https://api.groq.com/openai/v1/chat/completions",
             headers={"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"},
-            json={"model": "llama-3.1-8b-instant",
-                  "messages": [{"role": "user", "content": prompt}],
-                  "max_tokens": 60, "temperature": 0},
-            timeout=8
+            json={
+                "model": "llama-3.1-8b-instant",
+                "messages": [{"role": "user", "content": prompt}],
+                "max_tokens": 60,
+                "temperature": 0,
+            },
+            timeout=8,
         )
         if r.status_code == 200:
             content = r.json()['choices'][0]['message']['content'].strip()
@@ -570,11 +594,7 @@ def groq_quality_check(text, affiliate_url):
 # ─────────────────────────────────────────────────────────────────────────────
 
 def post_photo_bytes(chat_id, img_bytes, caption, ctype='image/jpeg'):
-    """
-    Send image bytes via Bot API.
-    Returns (ok, telegram_image_url) where telegram_image_url is a
-    permanent public URL from Telegram CDN — perfect for website display.
-    """
+    """Send image bytes via Bot API. Returns (ok, tg_file_url)."""
     try:
         clean_cap = re.sub(r'<[^>]+>', '', caption)[:1024]
         ext = 'jpg' if 'jpeg' in ctype else ctype.split('/')[-1]
@@ -588,19 +608,14 @@ def post_photo_bytes(chat_id, img_bytes, caption, ctype='image/jpeg'):
             print(f"    sendPhoto(bytes) error: {r.text[:120]}")
             return False, ''
 
-        # Extract Telegram's own file URL — permanent, public, no blocking
-        # This is the BEST image URL for the website
         tg_img_url = ''
         try:
             resp = r.json()
             if resp.get('ok'):
-                photo = resp['result']['photo']
-                # Get largest size (last in array)
-                file_id = photo[-1]['file_id']
-                # Get the file path
+                file_id = resp['result']['photo'][-1]['file_id']
                 fp = requests.get(
                     f"https://api.telegram.org/bot{BOT_TOKEN}/getFile",
-                    params={'file_id': file_id}, timeout=8
+                    params={'file_id': file_id}, timeout=8,
                 ).json()
                 file_path = fp.get('result', {}).get('file_path', '')
                 if file_path:
@@ -611,10 +626,11 @@ def post_photo_bytes(chat_id, img_bytes, caption, ctype='image/jpeg'):
 
         return True, tg_img_url
     except Exception as e:
+        print(f"    sendPhoto(bytes) exception: {e}")
         return False, ''
 
 def post_photo_url(chat_id, image_url, caption):
-    """Send image by URL — Telegram's servers fetch it directly."""
+    """Send image by URL. Returns (ok, tg_file_url)."""
     try:
         clean_cap = re.sub(r'<[^>]+>', '', caption)[:1024]
         r = requests.post(
@@ -625,16 +641,14 @@ def post_photo_url(chat_id, image_url, caption):
         if r.status_code != 200:
             print(f"    sendPhoto(url) error: {r.text[:120]}")
 
-        # Also try to extract Telegram file URL from response
         tg_img_url = ''
         try:
             resp = r.json()
             if resp.get('ok'):
-                photo = resp['result']['photo']
-                file_id = photo[-1]['file_id']
+                file_id = resp['result']['photo'][-1]['file_id']
                 fp = requests.get(
                     f"https://api.telegram.org/bot{BOT_TOKEN}/getFile",
-                    params={'file_id': file_id}, timeout=8
+                    params={'file_id': file_id}, timeout=8,
                 ).json()
                 file_path = fp.get('result', {}).get('file_path', '')
                 if file_path:
@@ -645,9 +659,11 @@ def post_photo_url(chat_id, image_url, caption):
 
         return r.status_code == 200, tg_img_url
     except Exception as e:
-        return False, ''  
+        print(f"    sendPhoto(url) exception: {e}")
+        return False, ''
 
 def post_text(chat_id, text):
+    """Send text message. Returns (ok, '')."""
     try:
         clean = re.sub(r'<[^>]+>', '', text)
         clean = re.sub(r'\s+', ' ', clean).strip()[:4096]
@@ -660,7 +676,8 @@ def post_text(chat_id, text):
             print(f"    sendMessage error: {r.text[:100]}")
         return r.status_code == 200, ''
     except Exception as e:
-        return False, ''  
+        print(f"    sendMessage exception: {e}")
+        return False, ''
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -700,7 +717,10 @@ async def run():
     total         = 0
     chat_id       = f'@{YOUR_CHANNEL}'
 
-    print(f"v{VERSION} | @{YOUR_CHANNEL} | tag={AMAZON_TAG} | cuelinks={'on' if CUELINKS_KEY else 'off'} | groq={'on (advisory)' if GROQ_API_KEY else 'off'}")
+    print(f"v{VERSION} | @{YOUR_CHANNEL} | tag={AMAZON_TAG} | "
+          f"cuelinks={'on' if CUELINKS_KEY else 'off'} | "
+          f"groq={'on (advisory)' if GROQ_API_KEY else 'off'} | "
+          f"imgbb={'on' if IMGBB_KEY else 'OFF ⚠️'}")
     print(f"Sources: {SOURCE_CHANNELS}")
     print(f"Loaded {len(posted_hashes)} seen hashes")
 
@@ -760,7 +780,7 @@ async def run():
                     all_urls = extract_all_urls_from_msg(msg)
                     print(f"    urls: {all_urls}")
 
-                    # 2. Resolve affiliate URL + get product page URL
+                    # 2. Resolve affiliate URL
                     affiliate_url = None
                     product_url   = ''
                     for url in all_urls:
@@ -772,7 +792,6 @@ async def run():
                             break
 
                     print(f"    affiliate: {affiliate_url or 'NONE'}")
-
                     if not affiliate_url:
                         print("    skip: no affiliate URL"); continue
 
@@ -785,23 +804,19 @@ async def run():
                     if not chk.is_good:
                         print("    ✗ checklist FAILED — skipping"); continue
 
-                    # 5. Groq — ADVISORY ONLY, never blocks
+                    # 5. Groq advisory
                     if GROQ_API_KEY:
                         ai_ok, ai_reason = groq_quality_check(clean, affiliate_url)
                         print(f"    🤖 Groq: {'OK' if ai_ok else 'warn'} — {ai_reason}")
 
                     final_text = clean + f"\n\n🛒 Deals by @{YOUR_CHANNEL}"
 
-                    # ── IMAGE STRATEGY ─────────────────────────────────────
-                    # Priority 1: Amazon deal → Amazon Associates image URL
-                    #   Real product photo, no watermarks, works everywhere
-                    #   sendPhoto(url) — Telegram fetches from Amazon directly
-                    #
-                    # Priority 2: Non-Amazon (Flipkart etc) with source photo
-                    #   → Telethon bytes → sendPhoto(bytes)
-                    #
-                    # Priority 3: No image available → text only
-                    # ────────────────────────────────────────────────────────
+                    # ── IMAGE STRATEGY ────────────────────────────────────
+                    # 1. Amazon ASIN → adsystem URL or scraped og:image
+                    # 2. Non-Amazon with photo → Telethon bytes
+                    # 3. Non-Amazon no photo → scrape product page
+                    # All images are uploaded to imgbb for permanent hosting
+                    # ─────────────────────────────────────────────────────
 
                     img_bytes    = None
                     img_saved    = ''
@@ -810,61 +825,61 @@ async def run():
                     asin = get_asin(product_url) if product_url else None
 
                     if asin:
-                        # Amazon deal — use official Associates image (no watermark!)
                         real_img_url = get_amazon_real_image_url(asin)
                         img_saved    = real_img_url
-                        print(f"    📷 Amazon Associates image (ASIN={asin})")
+                        print(f"    📷 Amazon image (ASIN={asin}): {real_img_url[:60] or 'not found'}")
 
                     elif has_photo:
-                        # Non-Amazon deal with photo — use Telethon
                         img_bytes, telegraph_url = await get_telethon_photo_bytes(client, msg)
-                        img_saved = telegraph_url  # upgraded to tg_url after posting
                         if not img_bytes:
                             print("    📷 Telethon failed")
                             if product_url:
                                 real_img_url = scrape_product_image(product_url)
                                 img_saved = real_img_url
+                        # img_bytes will be uploaded to imgbb after posting
 
                     elif product_url:
-                        # Last resort: scrape product page
                         real_img_url = scrape_product_image(product_url)
                         img_saved    = real_img_url
 
-                    print(f"    img: bytes={'yes '+str(len(img_bytes)//1024)+'KB' if img_bytes else 'no'}  url={img_saved[:50] if img_saved else 'none'}")
+                    print(f"    img: bytes={'yes ' + str(len(img_bytes)//1024) + 'KB' if img_bytes else 'no'}  "
+                          f"url={img_saved[:50] if img_saved else 'none'}")
 
-                    # Post
+                    # Post to Telegram
                     ok_post = False
                     tg_url  = ''
-                    resp    = ''  # initialize to avoid UnboundLocalError
 
                     if real_img_url:
-                        # Send image by URL (Amazon Associates / scraped)
-                        # Telegram fetches it — real product photo, no watermark
                         ok_post, tg_url = post_photo_url(chat_id, real_img_url, final_text)
                         if not ok_post:
-                            print(f"    sendPhoto(url) failed, trying text")
+                            print("    sendPhoto(url) failed, trying text")
                             ok_post, _ = post_text(chat_id, final_text)
 
                     elif img_bytes:
-                        # Flipkart/other with Telethon photo bytes
                         ok_post, tg_url = post_photo_bytes(chat_id, img_bytes, final_text)
                         if not ok_post:
-                            print(f"    sendPhoto(bytes) failed, trying text")
+                            print("    sendPhoto(bytes) failed, trying text")
                             ok_post, _ = post_text(chat_id, final_text)
 
                     else:
                         ok_post, _ = post_text(chat_id, final_text)
 
-                    # Best image for website:
-                    # 1. Telegram CDN URL (if post succeeded) — always accessible
-                    # 2. Amazon Associates URL (img_saved set above) — works in browsers
-                    # 3. Telegraph URL — works in browsers
-                    if tg_url:
-                        img_saved = tg_url
-                        print(f"    📷 website: Telegram CDN ✅")
+                    # ── Determine permanent image URL for website ─────────
+                    # Priority: imgbb (permanent) > nothing
+                    # Upload bytes directly, or re-host any URL via imgbb
+                    # tg_url expires — never save it raw
+                    if img_bytes:
+                        # Best quality: upload actual photo bytes to imgbb
+                        img_saved = upload_to_imgbb(img_bytes)
+                        print(f"    📷 website: imgbb from bytes ✅")
+                    elif tg_url:
+                        # tg_url expires → re-host on imgbb immediately
+                        img_saved = upload_to_imgbb(tg_url)
+                        print(f"    📷 website: imgbb from tg_url ✅")
                     elif img_saved:
-                      img_saved = upload_to_imgbb(img_saved)  
-                      print(f"    📷 website: fallback URL ✅ {img_saved[:55]}")
+                        # Amazon/scraped URL → host on imgbb for reliability
+                        img_saved = upload_to_imgbb(img_saved)
+                        print(f"    📷 website: imgbb from url ✅ {img_saved[:55]}")
                     else:
                         print(f"    📷 website: no image")
 
@@ -877,27 +892,25 @@ async def run():
                         total += 1
                         time.sleep(random.uniform(2.0, 4.0))
                     else:
-                        print(f"    ❌ FAILED: {resp[:120]}")
+                        print(f"    ❌ FAILED")
 
                 print(f"\n  scanned={count}  posted={found}")
 
             except Exception as e:
-                import traceback as tb
                 print(f"  ❌ {channel}: {e}")
-                tb.print_exc()
+                traceback.print_exc()
 
             state[channel] = new_last_id
 
-    # ── Web Feed Sources (RSS) ───────────────────────────────────────────────
+    # ── Web Feed Sources (RSS) ────────────────────────────────────────────────
     if WEB_FEEDS_ENABLED:
         print(f"\n{'─'*55}")
         print("  [WEB FEEDS] Fetching RSS sources...")
         try:
             feed_deals = fetch_web_deals(posted_hashes, max_per_source=8)
             for feed_msg, feed_source, feed_img, feed_product_url in feed_deals:
-                # Run through same affiliate + checklist pipeline
+
                 all_urls = extract_all_urls_from_msg(feed_msg)
-                # Also add the product URL directly
                 if feed_product_url and feed_product_url not in all_urls:
                     all_urls.insert(0, feed_product_url)
 
@@ -921,19 +934,22 @@ async def run():
                     print(f"    [feed] skip {feed_source}: {chk.failed[0]}")
                     continue
 
-                # Groq advisory
                 if GROQ_API_KEY:
                     ai_ok, ai_reason = groq_quality_check(clean, affiliate_url)
                     print(f"    [feed] Groq: {ai_reason}")
 
                 final_text = clean + f"\n\n🛒 Deals by @{YOUR_CHANNEL}"
 
-                # Image: use RSS thumbnail or scrape product page
+                # Use RSS thumbnail if available, else scrape
                 img_saved    = feed_img or ''
                 real_img_url = feed_img or ''
+                if not real_img_url and product_url:
+                    real_img_url = scrape_product_image(product_url)
+                    img_saved    = real_img_url
 
                 # Post
                 ok_post = False
+                resp    = ''
                 if real_img_url:
                     ok_post, resp = post_photo_url(chat_id, real_img_url, final_text)
                     if not ok_post:
@@ -941,19 +957,23 @@ async def run():
                 else:
                     ok_post, resp = post_text(chat_id, final_text)
 
+                # Upload feed image to imgbb for permanent website hosting
+                if ok_post and img_saved:
+                    img_saved = upload_to_imgbb(img_saved)
+
                 if ok_post:
                     msg_hash = hashlib.md5(feed_msg.text[:200].encode()).hexdigest()[:10]
                     posted_hashes.add(msg_hash)
                     deals = add_deal(deals, final_text, affiliate_url, feed_source, img_saved)
                     total += 1
-                    print(f"    ✅ [feed] POSTED from {feed_source}")
+                    print(f"    ✅ [feed] POSTED from {feed_source} | img={img_saved[:40] if img_saved else 'none'}")
                     time.sleep(random.uniform(2.0, 3.5))
                 else:
                     print(f"    ❌ [feed] FAILED from {feed_source}: {resp[:80]}")
 
         except Exception as e:
             print(f"  ❌ web feeds error: {e}")
-            import traceback; traceback.print_exc()
+            traceback.print_exc()
 
     save_json(STATE_FILE, state)
     save_json(DEALS_FILE, deals)
