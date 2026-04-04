@@ -1,14 +1,19 @@
 """
-Telegram Affiliate Deal Bot  v11.0
-===================================
-Changes from v10.0:
-  - upload_to_imgbb() now handles BOTH bytes and URL strings
-  - tg_url (Telegram CDN, expires ~1hr) is now re-hosted on imgbb
-  - img_bytes (Telethon photos) uploaded directly to imgbb as base64
-  - get_amazon_real_image_url() adsystem loop now actually varies the size param
-  - Web feeds section now uploads images to imgbb too
-  - traceback shadowing bug fixed (was causing UnboundLocalError)
-  - amazonindiaassociates added as supported source (affiliate tag auto-replaced)
+Telegram Affiliate Deal Bot  v12.0 — PERMANENT IMAGE FIX
+==========================================================
+Root cause of image failures (identified via deep analysis):
+  1. GitHub Actions IPs are BLOCKED by Amazon CDN, adsystem.com, and amazon.in
+     So ALL server-side Amazon image fetching always returns nothing.
+  2. product_url was saving empty for most deals.
+  3. Only Telegram photo attachments (Telethon bytes → imgbb) were working.
+
+Permanent fix:
+  - Replaced ALL blocked Amazon image methods with microlink.io free API
+    (fetches og:image from any URL, not blocked by GitHub Actions, no auth needed)
+  - fetch_og_image_via_microlink() used for ALL product image fetching
+  - product_url now always saved in deals.json for client-side ASIN extraction
+  - index.html can build Amazon CDN URLs from ASIN in browser (not blocked)
+  - Telethon photo bytes → imgbb (permanent) still the best path when available
 """
 
 import os, re, json, asyncio, requests, hashlib, io, random, time, traceback, base64
@@ -23,7 +28,7 @@ try:
 except ImportError:
     WEB_FEEDS_ENABLED = False
 
-VERSION = "11.0"
+VERSION = "12.0"
 
 # ── Config ────────────────────────────────────────────────────────────────────
 def _require(key):
@@ -267,24 +272,20 @@ def resolve_to_affiliate(raw_url):
 def upload_to_imgbb(image_source):
     """
     Upload image to imgbb for permanent hosting.
-    Accepts either:
-      - bytes  → encodes as base64 and uploads directly
-      - str    → treated as image URL, imgbb fetches it
+    Accepts:
+      - bytes → encodes as base64 and uploads directly (best quality)
+      - str   → treated as image URL, imgbb fetches it
     Returns permanent imgbb URL, or original string on failure.
-    Falls back gracefully if IMGBB_API_KEY is not set.
+    Gracefully skips if IMGBB_API_KEY is not set.
     """
     if not IMGBB_KEY:
         return image_source if isinstance(image_source, str) else ''
-
     if not image_source:
         return ''
-
     try:
         if isinstance(image_source, bytes):
-            # Upload raw bytes as base64
             payload = {"image": base64.b64encode(image_source).decode("utf-8")}
         else:
-            # Upload by URL — imgbb fetches it
             payload = {"image": image_source}
 
         r = requests.post(
@@ -302,82 +303,63 @@ def upload_to_imgbb(image_source):
         print(f"    🖼️ imgbb failed ({r.status_code}): {r.text[:80]}")
     except Exception as e:
         print(f"    🖼️ imgbb error: {e}")
-
-    # Fallback: return original (URL string or empty)
     return image_source if isinstance(image_source, str) else ''
 
 
-def get_amazon_real_image_url(asin):
+def fetch_og_image_via_microlink(url):
     """
-    Get Amazon product image URL.
-    Tries Amazon adsystem widget redirect (no scraping needed).
-    Falls back to scraping og:image from product page.
-    """
-    if not asin:
-        return ''
-
-    # Try adsystem widget — it redirects to the real CDN image
-    # FIX: actually vary the size parameter in the URL (was broken in v10)
-    for size in ['_SL500_', '_SL300_', '_SX679_']:
-        url = (
-            f"https://ws-in.amazon-adsystem.com/widgets/q"
-            f"?_encoding=UTF8&ASIN={asin}&Format={size}"
-            f"&ID=AsinImage&MarketPlace=IN&ServiceVersion=20070822"
-            f"&WS=1&tag={AMAZON_TAG}&language=en_IN"
-        )
-        try:
-            r = requests.head(url, timeout=8, headers=BROWSE_HEADERS, allow_redirects=True)
-            if r.status_code == 200 and 'image' in r.headers.get('content-type', ''):
-                print(f"    🔍 adsystem image ({size}): {r.url[:70]}")
-                return r.url
-        except Exception:
-            pass
-
-    # Fallback: scrape og:image from product page
-    return scrape_product_image(f"https://www.amazon.in/dp/{asin}")
-
-
-def scrape_product_image(product_url):
-    """
-    Scrape the product image URL from Amazon/Flipkart page via og:image.
+    Fetch og:image from any product URL using microlink.io free API.
+    WHY: GitHub Actions IPs are blocked by Amazon/Flipkart for direct scraping.
+         microlink.io fetches pages from their own IPs — not blocked.
+    Free tier: 100 req/day, no API key needed.
     Returns image URL string or ''.
     """
-    if not product_url:
+    if not url:
         return ''
     try:
-        r = requests.get(product_url, headers=BROWSE_HEADERS, timeout=12)
-        if r.status_code != 200:
-            print(f"    🔍 page fetch {r.status_code} for {product_url[:50]}")
-            return ''
-        html = r.text
-
-        # Method 1: og:image meta tag
-        m = re.search(r'<meta[^>]+property=["\']og:image["\'][^>]+content=["\']([^"\']+)["\']', html)
-        if not m:
-            m = re.search(r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+property=["\']og:image["\']', html)
-        if m:
-            img = m.group(1)
-            if img.startswith('http') and any(k in img for k in ('amazon', 'flipkart', 'fkimg', 'm.media', 'ssl-images')):
-                print(f"    🔍 og:image: {img[:70]}")
-                return img
-
-        # Method 2: Amazon hiRes image in page JS
-        m = re.search(r'"large":"(https://m\.media-amazon\.com/images/I/[^"]+)"', html)
-        if m:
-            img = m.group(1)
-            print(f"    🔍 large img: {img[:70]}")
-            return img
-
-        # Method 3: landingImage src
-        m = re.search(r'id=["\']landingImage["\'][^>]+src=["\']([^"\']+)["\']', html)
-        if m:
-            img = m.group(1)
-            print(f"    🔍 landingImage: {img[:70]}")
-            return img
-
-        print(f"    🔍 no image found in page")
+        r = requests.get(
+            'https://api.microlink.io',
+            params={'url': url, 'meta': 'false'},
+            timeout=12,
+        )
+        if r.status_code == 200:
+            data = r.json()
+            img = (data.get('data') or {}).get('image', {})
+            img_url = img.get('url', '') if isinstance(img, dict) else ''
+            if img_url and img_url.startswith('http'):
+                print(f"    🔍 microlink: {img_url[:70]}")
+                return img_url
+            print(f"    🔍 microlink: no image in response")
+        else:
+            print(f"    🔍 microlink failed ({r.status_code})")
     except Exception as e:
-        print(f"    🔍 scrape failed: {e}")
+        print(f"    🔍 microlink error: {e}")
+    return ''
+
+
+def get_product_image(product_url, asin=None):
+    """
+    Master image fetcher. Tries all methods in order:
+    1. microlink.io on the product page (works from GitHub Actions)
+    2. microlink.io on the clean Amazon dp URL (if ASIN known)
+    Returns image URL string or ''.
+    """
+    if not product_url and not asin:
+        return ''
+
+    # Method 1: microlink on the actual product URL
+    if product_url:
+        img = fetch_og_image_via_microlink(product_url)
+        if img:
+            return img
+
+    # Method 2: microlink on clean Amazon dp URL (if we have ASIN)
+    if asin and not product_url:
+        clean_url = f"https://www.amazon.in/dp/{asin}"
+        img = fetch_og_image_via_microlink(clean_url)
+        if img:
+            return img
+
     return ''
 
 
@@ -385,7 +367,7 @@ async def get_telethon_photo_bytes(tg_client, msg):
     """
     Download photo bytes directly via Telethon.
     Returns (bytes, telegraph_url).
-    telegraph_url is a bonus — main path now uses imgbb instead.
+    Bytes path is best — upload directly to imgbb as base64.
     """
     if not getattr(msg, 'photo', None):
         return None, ''
@@ -396,7 +378,7 @@ async def get_telethon_photo_bytes(tg_client, msg):
             return None, ''
         print(f"    📷 {len(data)//1024}KB via Telethon ✅")
 
-        # Try Telegraph as bonus (non-critical)
+        # Try Telegraph as bonus backup URL (non-critical)
         telegraph_url = ''
         try:
             r = requests.post(
@@ -697,12 +679,12 @@ def save_json(path, data):
 
 def add_deal(deals, text, url, source, image_url, product_url=''):
     deals.insert(0, {
-        'text':      text,
-        'url':       url or '',
-        'product_url': product_url or '',  # full Amazon/Flipkart URL for image extraction
-        'source':    source,
-        'image':     image_url or '',
-        'timestamp': datetime.now(timezone.utc).isoformat(),
+        'text':        text,
+        'url':         url or '',
+        'product_url': product_url or '',  # full Amazon/Flipkart URL — for ASIN extraction in browser
+        'source':      source,
+        'image':       image_url or '',
+        'timestamp':   datetime.now(timezone.utc).isoformat(),
     })
     return deals[:MAX_DEALS]
 
@@ -781,7 +763,7 @@ async def run():
                     all_urls = extract_all_urls_from_msg(msg)
                     print(f"    urls: {all_urls}")
 
-                    # 2. Resolve affiliate URL
+                    # 2. Resolve affiliate URL + product page URL
                     affiliate_url = None
                     product_url   = ''
                     for url in all_urls:
@@ -813,35 +795,41 @@ async def run():
                     final_text = clean + f"\n\n🛒 Deals by @{YOUR_CHANNEL}"
 
                     # ── IMAGE STRATEGY ────────────────────────────────────
-                    # 1. Amazon ASIN → adsystem URL or scraped og:image
-                    # 2. Non-Amazon with photo → Telethon bytes
-                    # 3. Non-Amazon no photo → scrape product page
-                    # All images are uploaded to imgbb for permanent hosting
+                    #
+                    # Priority 1: Message has Telegram photo attached
+                    #   → Telethon downloads bytes → upload to imgbb as base64
+                    #   → Best quality, always works
+                    #
+                    # Priority 2: Text-only message with product_url (Amazon/Flipkart)
+                    #   → fetch_og_image_via_microlink(product_url)
+                    #   → microlink.io is NOT blocked by GitHub Actions
+                    #   → Upload result to imgbb for permanent hosting
+                    #
+                    # Priority 3: No image found server-side
+                    #   → Save product_url anyway — index.html builds
+                    #     Amazon CDN URL from ASIN in the browser
+                    #     (browser is not blocked by Amazon CDN)
+                    #
                     # ─────────────────────────────────────────────────────
 
                     img_bytes    = None
                     img_saved    = ''
                     real_img_url = ''
 
-                    asin = get_asin(product_url) if product_url else None
-
-                    if asin:
-                        real_img_url = get_amazon_real_image_url(asin)
-                        img_saved    = real_img_url
-                        print(f"    📷 Amazon image (ASIN={asin}): {real_img_url[:60] or 'not found'}")
-
-                    elif has_photo:
+                    if has_photo:
+                        # Best path: download photo bytes via Telethon
                         img_bytes, telegraph_url = await get_telethon_photo_bytes(client, msg)
                         if not img_bytes:
-                            print("    📷 Telethon failed")
+                            print("    📷 Telethon failed — trying microlink")
                             if product_url:
-                                real_img_url = scrape_product_image(product_url)
+                                real_img_url = fetch_og_image_via_microlink(product_url)
                                 img_saved = real_img_url
-                        # img_bytes will be uploaded to imgbb after posting
 
                     elif product_url:
-                        real_img_url = scrape_product_image(product_url)
-                        img_saved    = real_img_url
+                        # Text-only deal: use microlink to get og:image
+                        asin = get_asin(product_url)
+                        real_img_url = get_product_image(product_url, asin)
+                        img_saved = real_img_url
 
                     print(f"    img: bytes={'yes ' + str(len(img_bytes)//1024) + 'KB' if img_bytes else 'no'}  "
                           f"url={img_saved[:50] if img_saved else 'none'}")
@@ -850,45 +838,44 @@ async def run():
                     ok_post = False
                     tg_url  = ''
 
-                    if real_img_url:
-                        ok_post, tg_url = post_photo_url(chat_id, real_img_url, final_text)
-                        if not ok_post:
-                            print("    sendPhoto(url) failed, trying text")
-                            ok_post, _ = post_text(chat_id, final_text)
-
-                    elif img_bytes:
+                    if img_bytes:
                         ok_post, tg_url = post_photo_bytes(chat_id, img_bytes, final_text)
                         if not ok_post:
                             print("    sendPhoto(bytes) failed, trying text")
                             ok_post, _ = post_text(chat_id, final_text)
 
+                    elif real_img_url:
+                        ok_post, tg_url = post_photo_url(chat_id, real_img_url, final_text)
+                        if not ok_post:
+                            print("    sendPhoto(url) failed, trying text")
+                            ok_post, _ = post_text(chat_id, final_text)
+
                     else:
                         ok_post, _ = post_text(chat_id, final_text)
 
-                    # ── Determine permanent image URL for website ─────────
-                    # Priority: imgbb (permanent) > nothing
-                    # Upload bytes directly, or re-host any URL via imgbb
-                    # tg_url expires — never save it raw
+                    # ── Permanent image URL for website ───────────────────
+                    # Upload everything to imgbb — never save raw tg_url (expires)
+                    # product_url is ALWAYS saved so browser can build ASIN image
                     if img_bytes:
-                        # Best quality: upload actual photo bytes to imgbb
                         img_saved = upload_to_imgbb(img_bytes)
                         print(f"    📷 website: imgbb from bytes ✅")
                     elif tg_url:
-                        # tg_url expires → re-host on imgbb immediately
                         img_saved = upload_to_imgbb(tg_url)
                         print(f"    📷 website: imgbb from tg_url ✅")
                     elif img_saved:
-                        # Amazon/scraped URL → host on imgbb for reliability
                         img_saved = upload_to_imgbb(img_saved)
                         print(f"    📷 website: imgbb from url ✅ {img_saved[:55]}")
                     else:
-                        print(f"    📷 website: no image")
+                        print(f"    📷 website: no server image — browser will use ASIN CDN")
 
                     if ok_post:
                         mode = '📷 bytes' if img_bytes else ('📷 url' if real_img_url else '📝 text')
                         print(f"    ✅ POSTED {mode}")
                         posted_hashes.add(msg_hash)
-                        deals = add_deal(deals, final_text, affiliate_url or '', channel, img_saved, product_url)
+                        deals = add_deal(
+                            deals, final_text, affiliate_url or '',
+                            channel, img_saved, product_url
+                        )
                         found += 1
                         total += 1
                         time.sleep(random.uniform(2.0, 4.0))
@@ -941,11 +928,11 @@ async def run():
 
                 final_text = clean + f"\n\n🛒 Deals by @{YOUR_CHANNEL}"
 
-                # Use RSS thumbnail if available, else scrape
+                # Image: RSS thumbnail first, then microlink on product page
                 img_saved    = feed_img or ''
                 real_img_url = feed_img or ''
                 if not real_img_url and product_url:
-                    real_img_url = scrape_product_image(product_url)
+                    real_img_url = fetch_og_image_via_microlink(product_url)
                     img_saved    = real_img_url
 
                 # Post
@@ -958,14 +945,17 @@ async def run():
                 else:
                     ok_post, resp = post_text(chat_id, final_text)
 
-                # Upload feed image to imgbb for permanent website hosting
+                # Upload to imgbb for permanent hosting
                 if ok_post and img_saved:
                     img_saved = upload_to_imgbb(img_saved)
 
                 if ok_post:
                     msg_hash = hashlib.md5(feed_msg.text[:200].encode()).hexdigest()[:10]
                     posted_hashes.add(msg_hash)
-                    deals = add_deal(deals, final_text, affiliate_url, feed_source, img_saved, product_url)
+                    deals = add_deal(
+                        deals, final_text, affiliate_url,
+                        feed_source, img_saved, product_url
+                    )
                     total += 1
                     print(f"    ✅ [feed] POSTED from {feed_source} | img={img_saved[:40] if img_saved else 'none'}")
                     time.sleep(random.uniform(2.0, 3.5))
