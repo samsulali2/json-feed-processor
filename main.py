@@ -1,19 +1,14 @@
 """
-Telegram Affiliate Deal Bot  v12.0 — PERMANENT IMAGE FIX
-==========================================================
-Root cause of image failures (identified via deep analysis):
-  1. GitHub Actions IPs are BLOCKED by Amazon CDN, adsystem.com, and amazon.in
-     So ALL server-side Amazon image fetching always returns nothing.
-  2. product_url was saving empty for most deals.
-  3. Only Telegram photo attachments (Telethon bytes → imgbb) were working.
-
-Permanent fix:
-  - Replaced ALL blocked Amazon image methods with microlink.io free API
-    (fetches og:image from any URL, not blocked by GitHub Actions, no auth needed)
-  - fetch_og_image_via_microlink() used for ALL product image fetching
-  - product_url now always saved in deals.json for client-side ASIN extraction
-  - index.html can build Amazon CDN URLs from ASIN in browser (not blocked)
-  - Telethon photo bytes → imgbb (permanent) still the best path when available
+Telegram Affiliate Deal Bot  v13.0
+====================================
+Changes from v12.0:
+  - fetch_price_via_microlink(): fetches price from product page when
+    source channel posts no price — appended to deal text automatically
+  - has_price_in_text(): robust multi-pattern price detector used to
+    decide whether to fetch price from product page
+  - microlink_fetch(): unified single function for both image and price
+    (one HTTP call returns both, saving the free-tier quota)
+  - VERSION bump, startup log now shows microlink status
 """
 
 import os, re, json, asyncio, requests, hashlib, io, random, time, traceback, base64
@@ -28,7 +23,7 @@ try:
 except ImportError:
     WEB_FEEDS_ENABLED = False
 
-VERSION = "12.0"
+VERSION = "13.0"
 
 # ── Config ────────────────────────────────────────────────────────────────────
 def _require(key):
@@ -99,12 +94,6 @@ BROWSE_HEADERS = {
 # ─────────────────────────────────────────────────────────────────────────────
 
 def extract_text_urls(text):
-    """
-    Extract URLs from text.
-    Filters ONLY true single-letter table artifacts like "a : https://..."
-    where the single letter is an isolated column header (preceded by space/start).
-    Does NOT filter product labels like "Fiama : https://..." or "More : https://..."
-    """
     if not text:
         return []
     results = []
@@ -266,17 +255,144 @@ def resolve_to_affiliate(raw_url):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# PRICE UTILITIES
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Compiled once — matches all price patterns seen in deal channels
+_PRICE_RE = re.compile(
+    r'₹\s*[\d,]+'                      # ₹1,299 or ₹1299
+    r'|Deal\s*Price\s*[:\-]?\s*[\d,]+\s*Rs'  # Deal Price:699 Rs
+    r'|Rs\.?\s*[\d,]+'                 # Rs. 98 or Rs98
+    r'|[\d,]+\s*₹'                     # 479₹
+    r'|(?:@|at)\s*(?:Rs\.?|₹)?\s*[\d,]+'    # @299 or at Rs.299
+    r'|[\-–]\s*Rs\.?\s*[\d,]+',        # - Rs. 98
+    re.IGNORECASE
+)
+
+def has_price_in_text(text):
+    """Return True if the message already contains a recognisable price."""
+    return bool(_PRICE_RE.search(text or ''))
+
+
+def extract_price_from_text(text):
+    """
+    Extract the best price string from raw text.
+    Returns formatted '₹NNN' string or ''.
+    Tries patterns in priority order — most specific first.
+    """
+    if not text:
+        return ''
+
+    # 1. ₹1,234 or ₹ 1234 — most explicit, highest priority
+    m = re.search(r'₹\s*([\d,]+)', text)
+    if m:
+        return '₹' + m.group(1).replace(' ', '')
+
+    # 2. Deal Price:699 Rs. — desidime / idoffers format
+    m = re.search(r'Deal\s*Price\s*[:\-]?\s*([\d,]+)\s*Rs', text, re.I)
+    if m:
+        return '₹' + m.group(1)
+
+    # 3. Rs. 98 or Rs98
+    m = re.search(r'Rs\.?\s*([\d,]+)', text, re.I)
+    if m:
+        return '₹' + m.group(1)
+
+    # 4. 479₹ — number before symbol
+    m = re.search(r'([\d,]+)\s*₹', text)
+    if m:
+        return '₹' + m.group(1)
+
+    # 5. @299 or at Rs.171 — "at price" format
+    m = re.search(r'(?:@|at)\s*(?:Rs\.?|₹)?\s*([\d,]+)', text, re.I)
+    if m:
+        return '₹' + m.group(1).replace(',', '')
+
+    # 6. "Lotion 29ml - Rs. 98" — dash before price
+    m = re.search(r'[\-–]\s*Rs\.?\s*([\d,]+)', text, re.I)
+    if m:
+        return '₹' + m.group(1)
+
+    return ''
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# MICROLINK UTILITY  (one call → image + price + title)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def microlink_fetch(url):
+    """
+    Call microlink.io once and return (image_url, price_str, title_str).
+    WHY microlink: GitHub Actions IPs are blocked by Amazon/Flipkart CDNs.
+                   microlink uses its own IP pool — not blocked.
+    Free tier: 100 req/day, no API key needed.
+    All three fields may be empty strings on failure.
+    """
+    if not url:
+        return '', '', ''
+    try:
+        r = requests.get(
+            'https://api.microlink.io',
+            params={'url': url, 'meta': 'false'},
+            timeout=14,
+        )
+        if r.status_code != 200:
+            print(f"    🔍 microlink failed ({r.status_code})")
+            return '', '', ''
+
+        data   = r.json().get('data') or {}
+        img    = data.get('image') or {}
+        img_url = img.get('url', '') if isinstance(img, dict) else ''
+        if img_url and not img_url.startswith('http'):
+            img_url = ''
+
+        # microlink sometimes puts price in description / title
+        desc  = data.get('description', '') or ''
+        title = data.get('title', '') or ''
+        combined = title + ' ' + desc
+
+        price = extract_price_from_text(combined)
+
+        if img_url:
+            print(f"    🔍 microlink img: {img_url[:70]}")
+        if price:
+            print(f"    💰 microlink price: {price}")
+
+        return img_url, price, title
+
+    except Exception as e:
+        print(f"    🔍 microlink error: {e}")
+        return '', '', ''
+
+
+def get_product_image(product_url, asin=None):
+    """
+    Fetch product image via microlink.
+    Falls back to a clean amazon dp URL if product_url gives nothing.
+    Returns image URL string or ''.
+    """
+    if product_url:
+        img, _, _ = microlink_fetch(product_url)
+        if img:
+            return img
+
+    if asin and not product_url:
+        img, _, _ = microlink_fetch(f"https://www.amazon.in/dp/{asin}")
+        if img:
+            return img
+
+    return ''
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # IMAGE UTILITIES
 # ─────────────────────────────────────────────────────────────────────────────
 
 def upload_to_imgbb(image_source):
     """
     Upload image to imgbb for permanent hosting.
-    Accepts:
-      - bytes → encodes as base64 and uploads directly (best quality)
-      - str   → treated as image URL, imgbb fetches it
-    Returns permanent imgbb URL, or original string on failure.
-    Gracefully skips if IMGBB_API_KEY is not set.
+    Accepts bytes (base64-encoded) or URL string (imgbb fetches it).
+    Returns permanent imgbb URL, or original string/'' on failure.
     """
     if not IMGBB_KEY:
         return image_source if isinstance(image_source, str) else ''
@@ -306,68 +422,10 @@ def upload_to_imgbb(image_source):
     return image_source if isinstance(image_source, str) else ''
 
 
-def fetch_og_image_via_microlink(url):
-    """
-    Fetch og:image from any product URL using microlink.io free API.
-    WHY: GitHub Actions IPs are blocked by Amazon/Flipkart for direct scraping.
-         microlink.io fetches pages from their own IPs — not blocked.
-    Free tier: 100 req/day, no API key needed.
-    Returns image URL string or ''.
-    """
-    if not url:
-        return ''
-    try:
-        r = requests.get(
-            'https://api.microlink.io',
-            params={'url': url, 'meta': 'false'},
-            timeout=12,
-        )
-        if r.status_code == 200:
-            data = r.json()
-            img = (data.get('data') or {}).get('image', {})
-            img_url = img.get('url', '') if isinstance(img, dict) else ''
-            if img_url and img_url.startswith('http'):
-                print(f"    🔍 microlink: {img_url[:70]}")
-                return img_url
-            print(f"    🔍 microlink: no image in response")
-        else:
-            print(f"    🔍 microlink failed ({r.status_code})")
-    except Exception as e:
-        print(f"    🔍 microlink error: {e}")
-    return ''
-
-
-def get_product_image(product_url, asin=None):
-    """
-    Master image fetcher. Tries all methods in order:
-    1. microlink.io on the product page (works from GitHub Actions)
-    2. microlink.io on the clean Amazon dp URL (if ASIN known)
-    Returns image URL string or ''.
-    """
-    if not product_url and not asin:
-        return ''
-
-    # Method 1: microlink on the actual product URL
-    if product_url:
-        img = fetch_og_image_via_microlink(product_url)
-        if img:
-            return img
-
-    # Method 2: microlink on clean Amazon dp URL (if we have ASIN)
-    if asin and not product_url:
-        clean_url = f"https://www.amazon.in/dp/{asin}"
-        img = fetch_og_image_via_microlink(clean_url)
-        if img:
-            return img
-
-    return ''
-
-
 async def get_telethon_photo_bytes(tg_client, msg):
     """
     Download photo bytes directly via Telethon.
-    Returns (bytes, telegraph_url).
-    Bytes path is best — upload directly to imgbb as base64.
+    Returns (bytes, telegraph_url). Bytes → imgbb is the preferred path.
     """
     if not getattr(msg, 'photo', None):
         return None, ''
@@ -378,7 +436,6 @@ async def get_telethon_photo_bytes(tg_client, msg):
             return None, ''
         print(f"    📷 {len(data)//1024}KB via Telethon ✅")
 
-        # Try Telegraph as bonus backup URL (non-critical)
         telegraph_url = ''
         try:
             r = requests.post(
@@ -478,39 +535,32 @@ class CheckResult:
 def run_checklist(text, affiliate_url):
     r = CheckResult()
 
-    # 1. Strip HTML
     if re.search(r'<[a-zA-Z][^>]*>', text):
         text = re.sub(r'<[^>]+>', ' ', text)
         text = re.sub(r'\s+', ' ', text).strip()
         r.fix("HTML stripped")
 
-    # 2. Remove source site URLs
     leaks = [u for u in extract_text_urls(text) if is_source_site(u)]
     if leaks:
         for u in leaks: text = text.replace(u, '')
         r.fix("source URLs removed", str(len(leaks)))
 
-    # 3. Remove shortener URLs (not our affiliate)
     short_leaks = [u for u in extract_text_urls(text)
                    if is_shortener(u) and u != affiliate_url]
     if short_leaks:
         for u in short_leaks: text = text.replace(u, '')
         r.fix("shorteners removed", str(len(short_leaks)))
 
-    # 4. Must have affiliate link
     if not affiliate_url:
         r.fail("no affiliate URL"); return text, affiliate_url, r
 
-    # 5. TinyURL homepage check
     if affiliate_url.rstrip('/') == 'https://tinyurl.com':
         r.fail("TinyURL homepage"); return text, affiliate_url, r
 
-    # 6. Affiliate link in text
     if affiliate_url not in text:
         text += f"\n\n🔗 {affiliate_url}"
         r.fix("affiliate URL appended")
 
-    # 7. Orphan label lines
     fixed_lines, removed = [], 0
     for line in text.split('\n'):
         s = line.strip()
@@ -521,18 +571,15 @@ def run_checklist(text, affiliate_url):
         text = re.sub(r'\n{3,}', '\n\n', '\n'.join(fixed_lines)).strip()
         r.fix("orphan labels", str(removed))
 
-    # 8. Must have content
     meaningful = re.sub(r'https?://\S+', '', text)
     meaningful = re.sub(r'[🔗🛒\s]', '', meaningful)
     if len(meaningful) < 10:
         r.fail("empty content"); return text, affiliate_url, r
 
-    # 9. Length
     if len(text) > 4096:
         text = text[:3900] + f"\n\n🔗 {affiliate_url}"
         r.fix("trimmed")
 
-    # 10. Product title (min 2 meaningful words)
     words = [w for w in text.split('🔗')[0].split() if len(w) > 2]
     if len(words) < 2:
         r.fail("no product title", f"{len(words)} words"); return text, affiliate_url, r
@@ -575,6 +622,24 @@ def groq_quality_check(text, affiliate_url):
 # TELEGRAM BOT API
 # ─────────────────────────────────────────────────────────────────────────────
 
+def _extract_tg_file_url(resp_json):
+    """Extract Telegram file URL from sendPhoto response JSON."""
+    try:
+        if resp_json.get('ok'):
+            file_id = resp_json['result']['photo'][-1]['file_id']
+            fp = requests.get(
+                f"https://api.telegram.org/bot{BOT_TOKEN}/getFile",
+                params={'file_id': file_id}, timeout=8,
+            ).json()
+            file_path = fp.get('result', {}).get('file_path', '')
+            if file_path:
+                url = f"https://api.telegram.org/file/bot{BOT_TOKEN}/{file_path}"
+                print(f"    📷 Telegram URL: {url[:70]}")
+                return url
+    except Exception as e:
+        print(f"    📷 could not extract Telegram URL: {e}")
+    return ''
+
 def post_photo_bytes(chat_id, img_bytes, caption, ctype='image/jpeg'):
     """Send image bytes via Bot API. Returns (ok, tg_file_url)."""
     try:
@@ -589,24 +654,7 @@ def post_photo_bytes(chat_id, img_bytes, caption, ctype='image/jpeg'):
         if r.status_code != 200:
             print(f"    sendPhoto(bytes) error: {r.text[:120]}")
             return False, ''
-
-        tg_img_url = ''
-        try:
-            resp = r.json()
-            if resp.get('ok'):
-                file_id = resp['result']['photo'][-1]['file_id']
-                fp = requests.get(
-                    f"https://api.telegram.org/bot{BOT_TOKEN}/getFile",
-                    params={'file_id': file_id}, timeout=8,
-                ).json()
-                file_path = fp.get('result', {}).get('file_path', '')
-                if file_path:
-                    tg_img_url = f"https://api.telegram.org/file/bot{BOT_TOKEN}/{file_path}"
-                    print(f"    📷 Telegram URL: {tg_img_url[:70]}")
-        except Exception as e:
-            print(f"    📷 could not extract Telegram URL: {e}")
-
-        return True, tg_img_url
+        return True, _extract_tg_file_url(r.json())
     except Exception as e:
         print(f"    sendPhoto(bytes) exception: {e}")
         return False, ''
@@ -622,24 +670,7 @@ def post_photo_url(chat_id, image_url, caption):
         )
         if r.status_code != 200:
             print(f"    sendPhoto(url) error: {r.text[:120]}")
-
-        tg_img_url = ''
-        try:
-            resp = r.json()
-            if resp.get('ok'):
-                file_id = resp['result']['photo'][-1]['file_id']
-                fp = requests.get(
-                    f"https://api.telegram.org/bot{BOT_TOKEN}/getFile",
-                    params={'file_id': file_id}, timeout=8,
-                ).json()
-                file_path = fp.get('result', {}).get('file_path', '')
-                if file_path:
-                    tg_img_url = f"https://api.telegram.org/file/bot{BOT_TOKEN}/{file_path}"
-                    print(f"    📷 Telegram URL: {tg_img_url[:70]}")
-        except Exception:
-            pass
-
-        return r.status_code == 200, tg_img_url
+        return r.status_code == 200, _extract_tg_file_url(r.json())
     except Exception as e:
         print(f"    sendPhoto(url) exception: {e}")
         return False, ''
@@ -681,7 +712,7 @@ def add_deal(deals, text, url, source, image_url, product_url=''):
     deals.insert(0, {
         'text':        text,
         'url':         url or '',
-        'product_url': product_url or '',  # full Amazon/Flipkart URL — for ASIN extraction in browser
+        'product_url': product_url or '',
         'source':      source,
         'image':       image_url or '',
         'timestamp':   datetime.now(timezone.utc).isoformat(),
@@ -702,8 +733,9 @@ async def run():
 
     print(f"v{VERSION} | @{YOUR_CHANNEL} | tag={AMAZON_TAG} | "
           f"cuelinks={'on' if CUELINKS_KEY else 'off'} | "
-          f"groq={'on (advisory)' if GROQ_API_KEY else 'off'} | "
-          f"imgbb={'on' if IMGBB_KEY else 'OFF ⚠️'}")
+          f"groq={'on' if GROQ_API_KEY else 'off'} | "
+          f"imgbb={'on' if IMGBB_KEY else 'OFF ⚠️'} | "
+          f"microlink=on")
     print(f"Sources: {SOURCE_CHANNELS}")
     print(f"Loaded {len(posted_hashes)} seen hashes")
 
@@ -781,58 +813,53 @@ async def run():
                     # 3. Build clean text
                     clean = build_clean_text(msg, affiliate_url)
 
-                    # 4. Checklist
+                    # 4. Fetch image + price from microlink IN ONE CALL
+                    #    (saves free-tier quota vs two separate calls)
+                    microlink_img   = ''
+                    microlink_price = ''
+                    if product_url:
+                        microlink_img, microlink_price, _ = microlink_fetch(product_url)
+
+                    # 5. Inject fetched price into text if message has none
+                    if microlink_price and not has_price_in_text(clean):
+                        # Insert price on a new line after the product title
+                        lines = clean.split('\n')
+                        lines.insert(1, microlink_price)
+                        clean = '\n'.join(lines)
+                        print(f"    💰 price injected: {microlink_price}")
+
+                    # 6. Checklist
                     clean, affiliate_url, chk = run_checklist(clean, affiliate_url)
                     print(chk.summary())
                     if not chk.is_good:
                         print("    ✗ checklist FAILED — skipping"); continue
 
-                    # 5. Groq advisory
+                    # 7. Groq advisory
                     if GROQ_API_KEY:
                         ai_ok, ai_reason = groq_quality_check(clean, affiliate_url)
                         print(f"    🤖 Groq: {'OK' if ai_ok else 'warn'} — {ai_reason}")
 
                     final_text = clean + f"\n\n🛒 Deals by @{YOUR_CHANNEL}"
 
-                    # ── IMAGE STRATEGY ────────────────────────────────────
-                    #
-                    # Priority 1: Message has Telegram photo attached
-                    #   → Telethon downloads bytes → upload to imgbb as base64
-                    #   → Best quality, always works
-                    #
-                    # Priority 2: Text-only message with product_url (Amazon/Flipkart)
-                    #   → fetch_og_image_via_microlink(product_url)
-                    #   → microlink.io is NOT blocked by GitHub Actions
-                    #   → Upload result to imgbb for permanent hosting
-                    #
-                    # Priority 3: No image found server-side
-                    #   → Save product_url anyway — index.html builds
-                    #     Amazon CDN URL from ASIN in the browser
-                    #     (browser is not blocked by Amazon CDN)
-                    #
-                    # ─────────────────────────────────────────────────────
+                    # ── IMAGE STRATEGY ─────────────────────────────────────
+                    # Priority 1: Telegram photo attached → Telethon bytes → imgbb
+                    # Priority 2: microlink og:image (already fetched above) → imgbb
+                    # Priority 3: No image → product_url saved for browser ASIN fallback
+                    # ──────────────────────────────────────────────────────
 
                     img_bytes    = None
-                    img_saved    = ''
-                    real_img_url = ''
+                    img_saved    = microlink_img  # may be '' if microlink found nothing
+                    real_img_url = microlink_img
 
                     if has_photo:
-                        # Best path: download photo bytes via Telethon
-                        img_bytes, telegraph_url = await get_telethon_photo_bytes(client, msg)
+                        img_bytes, _ = await get_telethon_photo_bytes(client, msg)
                         if not img_bytes:
-                            print("    📷 Telethon failed — trying microlink")
-                            if product_url:
-                                real_img_url = fetch_og_image_via_microlink(product_url)
-                                img_saved = real_img_url
-
-                    elif product_url:
-                        # Text-only deal: use microlink to get og:image
-                        asin = get_asin(product_url)
-                        real_img_url = get_product_image(product_url, asin)
-                        img_saved = real_img_url
+                            print("    📷 Telethon failed — using microlink img if available")
+                        # real_img_url / img_saved already set from microlink above
+                        # img_bytes takes priority in posting logic below
 
                     print(f"    img: bytes={'yes ' + str(len(img_bytes)//1024) + 'KB' if img_bytes else 'no'}  "
-                          f"url={img_saved[:50] if img_saved else 'none'}")
+                          f"microlink_url={real_img_url[:50] if real_img_url else 'none'}")
 
                     # Post to Telegram
                     ok_post = False
@@ -853,9 +880,9 @@ async def run():
                     else:
                         ok_post, _ = post_text(chat_id, final_text)
 
-                    # ── Permanent image URL for website ───────────────────
-                    # Upload everything to imgbb — never save raw tg_url (expires)
-                    # product_url is ALWAYS saved so browser can build ASIN image
+                    # ── Permanent image URL for website ────────────────────
+                    # Upload to imgbb — never save raw tg_url (expires ~1hr)
+                    # product_url always saved so browser can build ASIN CDN URL
                     if img_bytes:
                         img_saved = upload_to_imgbb(img_bytes)
                         print(f"    📷 website: imgbb from bytes ✅")
@@ -864,9 +891,9 @@ async def run():
                         print(f"    📷 website: imgbb from tg_url ✅")
                     elif img_saved:
                         img_saved = upload_to_imgbb(img_saved)
-                        print(f"    📷 website: imgbb from url ✅ {img_saved[:55]}")
+                        print(f"    📷 website: imgbb from microlink ✅ {img_saved[:55]}")
                     else:
-                        print(f"    📷 website: no server image — browser will use ASIN CDN")
+                        print(f"    📷 website: no server image — browser ASIN CDN fallback")
 
                     if ok_post:
                         mode = '📷 bytes' if img_bytes else ('📷 url' if real_img_url else '📝 text')
@@ -917,6 +944,18 @@ async def run():
                     continue
 
                 clean = build_clean_text(feed_msg, affiliate_url)
+
+                # Fetch price from microlink if feed message has no price
+                feed_img_ml = feed_img or ''
+                if product_url:
+                    ml_img, ml_price, _ = microlink_fetch(product_url)
+                    if ml_img and not feed_img_ml:
+                        feed_img_ml = ml_img
+                    if ml_price and not has_price_in_text(clean):
+                        lines = clean.split('\n')
+                        lines.insert(1, ml_price)
+                        clean = '\n'.join(lines)
+
                 clean, affiliate_url, chk = run_checklist(clean, affiliate_url)
                 if not chk.is_good:
                     print(f"    [feed] skip {feed_source}: {chk.failed[0]}")
@@ -928,14 +967,9 @@ async def run():
 
                 final_text = clean + f"\n\n🛒 Deals by @{YOUR_CHANNEL}"
 
-                # Image: RSS thumbnail first, then microlink on product page
-                img_saved    = feed_img or ''
-                real_img_url = feed_img or ''
-                if not real_img_url and product_url:
-                    real_img_url = fetch_og_image_via_microlink(product_url)
-                    img_saved    = real_img_url
+                real_img_url = feed_img_ml
+                img_saved    = feed_img_ml
 
-                # Post
                 ok_post = False
                 resp    = ''
                 if real_img_url:
@@ -945,7 +979,6 @@ async def run():
                 else:
                     ok_post, resp = post_text(chat_id, final_text)
 
-                # Upload to imgbb for permanent hosting
                 if ok_post and img_saved:
                     img_saved = upload_to_imgbb(img_saved)
 
