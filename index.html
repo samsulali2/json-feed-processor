@@ -40,21 +40,35 @@ header{background:linear-gradient(160deg,#0a0820 0%,#141b3a 50%,#0a0820 100%);bo
 .badge-other{background:rgba(255,255,255,0.15);color:#fff}
 .time-ago{font-size:11px;color:var(--muted)}
 .card-body{padding:10px 12px 12px;flex:1;display:flex;flex-direction:column;gap:6px}
-.deal-title{font-size:13px;font-weight:700;line-height:1.4;color:var(--text);display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;flex:1}
-.deal-price{font-size:17px;font-weight:800;color:var(--green)}
-.deal-extra{font-size:11px;color:var(--muted);line-height:1.4}
-.deal-link{display:inline-block;margin:0 12px 12px;background:#229ED9;color:#fff;text-align:center;padding:6px 18px;text-decoration:none;font-weight:700;border-radius:6px;font-size:12px;border:none;transition:transform 0.15s,box-shadow 0.15s;animation:pulsebtn 2.5s ease-in-out infinite}
+.deal-title{font-size:14px;font-weight:700;line-height:1.4;color:var(--text);display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;flex:1}
+.deal-price{font-size:18px;font-weight:800;color:var(--green)}
+.deal-extra{font-size:12px;color:var(--muted);line-height:1.4}
+.deal-link{display:block;margin:0 12px 12px;background:#229ED9;color:#fff;text-align:center;padding:8px 18px;text-decoration:none;font-weight:700;border-radius:6px;font-size:13px;border:none;transition:transform 0.15s,box-shadow 0.15s;animation:pulsebtn 2.5s ease-in-out infinite}
 .deal-link:hover{transform:translateY(-2px);box-shadow:0 4px 14px rgba(34,158,217,0.5);animation:none}
 @keyframes pulsebtn{0%,100%{box-shadow:0 0 0 0 rgba(34,158,217,0.4)}50%{box-shadow:0 0 0 6px rgba(34,158,217,0)}}
 .loading{grid-column:1/-1;text-align:center;padding:60px 20px;color:var(--muted);font-size:16px}
 .loading-spinner{width:40px;height:40px;border:3px solid rgba(255,107,0,0.2);border-top-color:var(--orange);border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto 15px}
 @keyframes spin{to{transform:rotate(360deg)}}
+
+/* ── Mobile ──────────────────────────────────────────────── */
 @media(max-width:600px){
   .header-inner{grid-template-columns:1fr auto}
-  .site-title{font-size:20px}
+  .site-title{font-size:22px}
   .header-search{display:none}
+  .tg-btn{font-size:12px;padding:8px 12px}
+  .stats-inner{font-size:13px;gap:12px}
+  .filter-bar{padding:10px 12px;gap:8px}
+  .filter-btn{font-size:12px;padding:5px 12px}
   .deals-grid{grid-template-columns:repeat(2,1fr);gap:10px}
-  .card-img-wrap{height:130px}
+  .card-img-wrap{height:140px}
+  .deal-title{font-size:13px;-webkit-line-clamp:2}
+  .deal-price{font-size:16px}
+  .deal-extra{font-size:11px}
+  .deal-link{font-size:13px;padding:9px 12px;margin:0 8px 8px}
+  .card-body{padding:8px 8px 8px;gap:4px}
+  .card-badges{padding:8px 8px 0}
+  .store-badge{font-size:9px}
+  .time-ago{font-size:10px}
 }
 </style>
 </head>
@@ -109,25 +123,19 @@ function timeAgo(ts){
 
 function getAsin(str){
   if(!str) return null;
-  // Match /dp/ASIN or /gp/product/ASIN patterns
   const m = str.match(/\/(?:dp|gp\/product|gp\/aw\/d|d)\/([A-Z0-9]{10})(?:[/?&]|$)/i);
   if(m) return m[1];
-  // Match query param ASIN=...
   const m2 = str.match(/[?&](?:ASIN|creativeASIN)=([A-Z0-9]{10})/i);
   return m2 ? m2[1] : null;
 }
 
 function isValidImageUrl(url){
-  if(!url || !url.startsWith('http')) return false;
-  // adsystem is a tracking redirect widget, not a real image
+  if(!url||!url.startsWith('http')) return false;
   if(url.includes('amazon-adsystem.com')) return false;
-  // Telegram file URLs expire — never use them
   if(url.includes('api.telegram.org/file/bot')) return false;
   return true;
 }
 
-// Amazon CDN fallback patterns tried in order by the browser
-// The browser is NOT blocked by Amazon CDN — only GitHub Actions is
 function getAmazonCdnUrls(asin){
   return [
     `https://m.media-amazon.com/images/P/${asin}.01._SL500_.jpg`,
@@ -138,65 +146,80 @@ function getAmazonCdnUrls(asin){
 }
 
 function getBestImage(deal, store){
-  // 1. Use imgbb/ibb hosted URL — permanent, fastest, most reliable
+  // 1. imgbb permanent URL
   if(isValidImageUrl(deal.image)) return deal.image;
-
-  // 2. Amazon deals: extract ASIN and build CDN URL directly in browser
-  //    Check product_url first (full amazon.in URL), then text, then url field
+  // 2. Build Amazon CDN URL from ASIN — works fine in browser
   if(store === 'amazon'){
-    const asin = getAsin(deal.product_url)
-              || getAsin(deal.text)
-              || getAsin(deal.url);
+    const asin = getAsin(deal.product_url) || getAsin(deal.text) || getAsin(deal.url);
     if(asin) return getAmazonCdnUrls(asin)[0];
   }
-
   return '';
 }
 
-// Called by onerror on img elements — tries multiple Amazon CDN patterns
-// then gives up and shows emoji placeholder
 function tryFallbackImage(imgEl, productUrl, dealText, dealUrl, store){
   if(store === 'amazon'){
     const asin = getAsin(productUrl) || getAsin(dealText) || getAsin(dealUrl);
     if(asin){
       const fallbacks = getAmazonCdnUrls(asin);
-      const idx = parseInt(imgEl.dataset.fbIdx || '0');
-      // Skip index 0 — that's what already failed
-      const nextIdx = idx + 1;
+      const nextIdx = parseInt(imgEl.dataset.fbIdx || '0') + 1;
       if(nextIdx < fallbacks.length){
         imgEl.dataset.fbIdx = nextIdx;
-        // Set new onerror before changing src
         imgEl.onerror = () => tryFallbackImage(imgEl, productUrl, dealText, dealUrl, store);
         imgEl.src = fallbacks[nextIdx];
         return;
       }
     }
   }
-  // All fallbacks exhausted — show emoji placeholder
   const emoji = store==='amazon'?'🛒':store==='flipkart'?'🛍️':store==='myntra'?'👗':'🏷️';
   imgEl.parentElement.innerHTML = `<div class="card-img-placeholder">${emoji}</div>`;
 }
 
 function extractTitle(text){
   if(!text) return 'Special Offer';
-  const lines=text.split('\n').map(l=>l.trim()).filter(l=>
-    l&&!l.startsWith('http')&&!l.startsWith('🔗')&&!l.startsWith('🛒')&&!l.startsWith('#')&&!l.startsWith('@')
+  const lines = text.split('\n').map(l=>l.trim()).filter(l=>
+    l && !l.startsWith('http') && !l.startsWith('🔗') &&
+    !l.startsWith('🛒') && !l.startsWith('#') && !l.startsWith('@')
   );
-  return lines[0]||'Special Offer';
+  return lines[0] || 'Special Offer';
 }
 
 function extractPrice(text){
   if(!text) return '';
-  const m=text.match(/₹[\d,]+/);
-  return m?m[0]:'';
+
+  // 1. ₹1,234 or ₹1234
+  let m = text.match(/₹\s*[\d,]+/);
+  if(m) return m[0].replace(/\s/g,'');
+
+  // 2. Deal Price:699 Rs. (common in desidime/idoffers)
+  m = text.match(/Deal\s*Price\s*[:\-]?\s*([\d,]+)\s*Rs/i);
+  if(m) return '₹' + m[1];
+
+  // 3. Rs. 98 or Rs.98 or Rs 98
+  m = text.match(/Rs\.?\s*([\d,]+)/i);
+  if(m) return '₹' + m[1];
+
+  // 4. @ ₹299 or @299 or at Rs.299
+  m = text.match(/(?:@|at)\s*(?:Rs\.?|₹)?\s*([\d,]+)/i);
+  if(m) return '₹' + m[1].replace(/,/g,'');
+
+  // 5. "Lotion 29ml - Rs. 98" dash before price
+  m = text.match(/[\-–]\s*Rs\.?\s*([\d,]+)/i);
+  if(m) return '₹' + m[1];
+
+  // 6. 479₹ (number before rupee symbol)
+  m = text.match(/([\d,]+)\s*₹/);
+  if(m) return '₹' + m[1];
+
+  return '';
 }
 
 function extractExtra(text){
   if(!text) return '';
-  const lines=text.split('\n').map(l=>l.trim()).filter(l=>
-    l&&!l.startsWith('http')&&!l.startsWith('🔗')&&!l.startsWith('🛒')&&!l.startsWith('#')&&!l.startsWith('@')
+  const lines = text.split('\n').map(l=>l.trim()).filter(l=>
+    l && !l.startsWith('http') && !l.startsWith('🔗') &&
+    !l.startsWith('🛒') && !l.startsWith('#') && !l.startsWith('@')
   );
-  return lines.slice(1,3).join(' • ')||'';
+  return lines.slice(1,3).join(' • ') || '';
 }
 
 function getEmoji(store){
@@ -204,8 +227,7 @@ function getEmoji(store){
 }
 
 function escAttr(s){
-  // Escape for use inside HTML attribute strings
-  return (s||'').replace(/'/g,"&#39;").replace(/"/g,'&quot;');
+  return (s||'').replace(/\\/g,'\\\\').replace(/'/g,"&#39;").replace(/"/g,'&quot;');
 }
 
 function renderDeals(deals){
@@ -221,22 +243,15 @@ function renderDeals(deals){
     const price    = extractPrice(deal.text);
     const extra    = extractExtra(deal.text);
     const emoji    = getEmoji(store);
-
-    // Escape values used inside onerror attribute string
     const eProdUrl = escAttr(deal.product_url || '');
     const eText    = escAttr((deal.text || '').substring(0, 200));
     const eUrl     = escAttr(deal.url || '');
-
     return `
       <div class="deal-card">
         <div class="card-img-wrap">
           ${imgUrl
-            ? `<img
-                src="${imgUrl}"
-                loading="lazy"
-                data-fb-idx="0"
-                onerror="tryFallbackImage(this,'${eProdUrl}','${eText}','${eUrl}','${store}')"
-              >`
+            ? `<img src="${imgUrl}" loading="lazy" data-fb-idx="0"
+                onerror="tryFallbackImage(this,'${eProdUrl}','${eText}','${eUrl}','${store}')">`
             : `<div class="card-img-placeholder">${emoji}</div>`
           }
         </div>
