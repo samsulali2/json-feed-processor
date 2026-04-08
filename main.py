@@ -488,15 +488,15 @@ def build_clean_text(msg, affiliate_url):
 
         line_cleaned = line
         for u in extract_text_urls(s):
-            if is_junk_url(u):
+            if is_junk_url(u) or is_amazon(u) or is_flipkart_fam(u):
                 line_cleaned = line_cleaned.replace(u, '')
 
         s_cleaned = line_cleaned.strip()
         if not s_cleaned:
             continue
 
-        line_urls = extract_text_urls(s)
-        if line_urls and all(is_junk_url(u) for u in line_urls):
+       line_urls = extract_text_urls(s)
+        if line_urls and all(is_junk_url(u) or is_amazon(u) or is_flipkart_fam(u) for u in line_urls):
             continue
 
         clean.append(line_cleaned)
