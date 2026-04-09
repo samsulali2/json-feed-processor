@@ -12,149 +12,93 @@
 :root { --red:#FF2D2D;--orange:#FF6B00;--yellow:#FFD600;--green:#00C853;--dark:#1A1A2E;--card:#16213E;--text:#FFFFFF;--muted:#A0AEC0; }
 *{margin:0;padding:0;box-sizing:border-box}
 body{background:var(--dark);color:var(--text);font-family:'Nunito',sans-serif;min-height:100vh;overflow-x:hidden}
+header{background:linear-gradient(160deg,#0a0820 0%,#141b3a 50%,#0a0820 100%);border-bottom:2px solid var(--orange);position:sticky;top:0;z-index:100}
+.header-inner{max-width:1400px;margin:0 auto;display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:15px;padding:12px 20px}
+.site-title{font-family:'Bangers';font-size:28px;letter-spacing:2px;color:var(--orange);white-space:nowrap}
+.header-search{display:flex;align-items:center;background:rgba(255,255,255,0.08);border-radius:25px;padding:8px 16px;border:1px solid rgba(255,255,255,0.12)}
+.header-search input{background:none;border:none;color:white;outline:none;width:100%;font-size:14px;font-family:'Nunito'}
+.header-search input::placeholder{color:var(--muted)}
+.tg-btn{background:#229ED9;color:white;text-decoration:none;font-weight:800;padding:9px 18px;border-radius:25px;font-size:13px;white-space:nowrap;transition:0.2s}
+.tg-btn:hover{background:#1a8bbf}
+.stats-bar{background:rgba(0,0,0,0.3);border-bottom:1px solid rgba(255,255,255,0.05)}
+.stats-inner{max-width:1400px;margin:0 auto;display:flex;gap:20px;padding:8px 20px;font-size:13px;align-items:center}
+.filter-bar{max-width:1400px;margin:0 auto;padding:15px 20px;display:flex;gap:10px;flex-wrap:wrap}
+.filter-btn{padding:6px 16px;border-radius:20px;border:1px solid rgba(255,255,255,0.15);background:transparent;color:var(--muted);cursor:pointer;font-size:13px;font-family:'Nunito';font-weight:700;transition:0.2s}
+.filter-btn:hover,.filter-btn.active{background:var(--orange);color:white;border-color:var(--orange)}
+.page-body{max-width:1400px;margin:0 auto;padding:0 20px 40px}
+.deals-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:18px}
+.deal-card{background:var(--card);border-radius:14px;overflow:hidden;border:1px solid rgba(255,255,255,0.08);display:flex;flex-direction:column}
+.card-img-wrap{width:100%;height:190px;display:flex;align-items:center;justify-content:center}
+.card-img-wrap img{max-width:85%;max-height:85%;object-fit:contain;border-radius:10px}
 
-/* existing styles unchanged ... */
+/* SAFE enhancement */
+.card-img-wrap img.needs-bg{background:rgba(255,255,255,0.92);padding:6px}
+.card-img-wrap img.has-glow{box-shadow:0 0 15px rgba(255,255,255,0.05)}
 
-.card-img-wrap{
-  width:100%;
-  height:190px;
-  background:transparent;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  position:relative;
-  overflow:hidden
-}
-
-.card-img-wrap img{
-  max-width:85%;
-  max-height:85%;
-  object-fit:contain;
-  transition:transform 0.3s, background 0.3s, box-shadow 0.3s;
-  border-radius:10px;
-}
-
-/* NEW intelligent styling */
-.card-img-wrap img.needs-bg{
-  background:rgba(255,255,255,0.92);
-  padding:6px;
-  box-shadow:0 4px 14px rgba(0,0,0,0.25);
-}
-
-.card-img-wrap img.has-glow{
-  box-shadow:0 0 20px rgba(255,255,255,0.06);
-}
-
-/* rest of your CSS unchanged */
+.card-body{padding:10px}
+.deal-title{font-size:14px;font-weight:700}
+.deal-price{font-size:18px;color:var(--green);font-weight:800}
+.deal-link{display:block;margin:10px;background:#229ED9;color:#fff;text-align:center;padding:8px;border-radius:6px;text-decoration:none}
 </style>
 </head>
 
 <body>
 
-<!-- FULL HTML SAME AS YOUR FILE (header, filters, etc.) -->
+<header>
+<div class="header-inner">
+<div class="site-title">🔥 CRAZY DEALS</div>
+<input id="search-input" placeholder="Search..." oninput="searchDeals(this.value)">
+</div>
+</header>
+
+<div class="page-body">
+<div class="deals-grid" id="deals-grid"></div>
+</div>
 
 <script>
 
-/* =========================
-   NEW: IMAGE ANALYZER
-========================= */
+let allDeals=[];
+
 function analyzeImage(img){
   try{
-    if(!img.complete || img.naturalWidth === 0) return;
-
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-
-    const w = img.naturalWidth;
-    const h = img.naturalHeight;
-
-    canvas.width = w;
-    canvas.height = h;
-
-    ctx.drawImage(img, 0, 0);
-
-    const data = ctx.getImageData(0,0,w,h).data;
-
-    let light = 0, total = 0;
-
-    for(let i=0;i<data.length;i+=80){
-      const r=data[i], g=data[i+1], b=data[i+2], a=data[i+3];
-
-      if(a < 50) continue;
-
-      const brightness = (r+g+b)/3;
-
-      if(brightness > 200) light++;
-      total++;
-    }
-
-    if(total === 0) return;
-
-    const ratio = light/total;
-
-    if(ratio > 0.6){
+    const src = img.src.toLowerCase();
+    if(src.includes('.png') || src.includes('.webp') || src.includes('amazon')){
       img.classList.add('needs-bg');
     } else {
       img.classList.add('has-glow');
     }
-
-  }catch(e){
-    // safe fallback (no crash)
-  }
+  }catch(e){}
 }
-
-/* =========================
-   YOUR ORIGINAL CODE BELOW
-   (UNCHANGED except img tag)
-========================= */
 
 function renderDeals(deals){
   const grid=document.getElementById('deals-grid');
-  if(!deals||deals.length===0){
-    grid.innerHTML='<div class="loading">😕 No deals found. Check back soon!</div>';
-    return;
-  }
 
-  grid.innerHTML=deals.map(deal=>{
-    const store    = getStore(deal.text, deal.url, deal.product_url);
-    const imgUrl   = getBestImage(deal, store);
-    const title    = extractTitle(deal.text);
-    const price    = extractPrice(deal.text);
-    const extra    = extractExtra(deal.text);
-    const emoji    = getEmoji(store);
-    const eProdUrl = escAttr(deal.product_url || '');
-    const eText    = escAttr((deal.text || '').substring(0, 200));
-    const eUrl     = escAttr(deal.url || '');
-
-    return `
-      <div class="deal-card">
-        <div class="card-img-wrap">
-          ${imgUrl
-            ? `<img src="${imgUrl}" loading="lazy" data-fb-idx="0"
-                crossorigin="anonymous"
-                onload="analyzeImage(this)"
-                onerror="tryFallbackImage(this,'${eProdUrl}','${eText}','${eUrl}','${store}')">`
-            : `<div class="card-img-placeholder">${emoji}</div>`
-          }
-        </div>
-
-        <div class="card-badges">
-          <span class="store-badge badge-${store}">${store}</span>
-          <span class="time-ago">${timeAgo(deal.timestamp)}</span>
-        </div>
-
-        <div class="card-body">
-          <div class="deal-title">${title}</div>
-          ${price ? `<div class="deal-price">${price}</div>` : ''}
-          ${extra ? `<div class="deal-extra">${extra}</div>`  : ''}
-        </div>
-
-        <a href="${deal.url||'#'}" target="_blank" rel="noopener" class="deal-link">Buy Now →</a>
-      </div>`;
-  }).join('');
+  grid.innerHTML=deals.map(d=>`
+  <div class="deal-card">
+    <div class="card-img-wrap">
+      <img src="${d.image}" onload="analyzeImage(this)">
+    </div>
+    <div class="card-body">
+      <div class="deal-title">${d.text}</div>
+    </div>
+    <a href="${d.url}" class="deal-link">Buy Now</a>
+  </div>
+  `).join('');
 }
 
-/* rest of your JS untouched */
+async function loadDeals(){
+  const res=await fetch('deals.json');
+  const data=await res.json();
+  allDeals=data;
+  renderDeals(allDeals);
+}
+
+function searchDeals(q){
+  const f=allDeals.filter(d=>(d.text||'').toLowerCase().includes(q.toLowerCase()));
+  renderDeals(f);
+}
+
+loadDeals();
 
 </script>
 
