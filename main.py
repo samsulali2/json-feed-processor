@@ -852,6 +852,11 @@ async def run():
                     if not chk.is_good:
                         print("    ✗ checklist FAILED — skipping"); continue
 
+                    # 6.5 Skip if no price found anywhere — keeps quality high
+                    if not has_price_in_text(clean) and not microlink_price:
+                        print("    skip: no price found — low quality deal")
+                        continue
+                    
                     # 7. Groq advisory
                     if GROQ_API_KEY:
                         ai_ok, ai_reason = groq_quality_check(clean, affiliate_url)
