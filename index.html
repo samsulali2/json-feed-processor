@@ -10,7 +10,7 @@
 <style>
 :root { --red:#FF2D2D;--orange:#FF6B00;--yellow:#FFD600;--green:#00C853;--dark:#1A1A2E;--card:#FFFFFF;--text:#1a1a2e;--muted:#64748b;--border:#e2e8f0; }
 *{margin:0;padding:0;box-sizing:border-box}
-body{background:#f1f5f9;color:var(--text);font-family:'Nunito',sans-serif;min-height:100vh;overflow-x:hidden}
+body{background:#ffffff;color:var(--text);font-family:'Nunito',sans-serif;min-height:100vh;overflow-x:hidden}
 header{background:linear-gradient(160deg,#0a0820 0%,#141b3a 50%,#0a0820 100%);border-bottom:2px solid var(--orange);position:sticky;top:0;z-index:100}
 .header-inner{max-width:1400px;margin:0 auto;display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:15px;padding:12px 20px}
 .site-title{font-family:'Bangers';font-size:28px;letter-spacing:2px;color:var(--orange);white-space:nowrap}
@@ -32,10 +32,10 @@ header{background:linear-gradient(160deg,#0a0820 0%,#141b3a 50%,#0a0820 100%);bo
 .filter-select:focus{border-color:var(--orange)}
 .filter-divider{width:1px;height:24px;background:var(--border);flex-shrink:0}
 .page-body{max-width:1400px;margin:0 auto;padding:16px 20px 40px}
-.deals-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px}
-.deal-card{background:#fff;border-radius:16px;overflow:hidden;border:1px solid var(--border);transition:transform 0.2s,box-shadow 0.2s;display:flex;flex-direction:column;box-shadow:0 1px 3px rgba(0,0,0,0.06)}
+.deals-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(260px,45vw),1fr));gap:16px}
+.deal-card{background:#fff;border-radius:16px;overflow:hidden;border:1px solid #e8ecf0;transition:transform 0.2s,box-shadow 0.2s;display:flex;flex-direction:column;box-shadow:0 2px 8px rgba(0,0,0,0.07)}
 .deal-card:hover{transform:translateY(-3px);box-shadow:0 8px 24px rgba(0,0,0,0.1)}
-.card-img-wrap{width:100%;height:180px;background:#fff;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;border-bottom:1px solid var(--border)}
+.card-img-wrap{width:100%;height:180px;background:#ffffff;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden}
 .card-img-wrap img{max-width:85%;max-height:85%;object-fit:contain;transition:transform 0.3s}
 .deal-card:hover .card-img-wrap img{transform:scale(1.05)}
 .card-img-placeholder{width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#f1f5f9,#e2e8f0);font-size:44px}
@@ -58,24 +58,27 @@ header{background:linear-gradient(160deg,#0a0820 0%,#141b3a 50%,#0a0820 100%);bo
 @keyframes spin{to{transform:rotate(360deg)}}
 
 /* ── Mobile ──────────────────────────────── */
+@media(max-width:768px){
+  .deals-grid{grid-template-columns:repeat(2,1fr) !important;gap:10px}
+  .filter-inner{overflow-x:auto;flex-wrap:nowrap;padding:8px 12px}
+  .filter-label{display:none}
+  .filter-divider{display:none}
+  .filter-btn,.filter-select{flex-shrink:0}
+}
 @media(max-width:600px){
   .header-inner{grid-template-columns:1fr auto}
   .site-title{font-size:22px}
   .header-search{display:none}
   .tg-btn{font-size:12px;padding:8px 12px}
-  .filter-inner{gap:6px;padding:8px 12px}
-  .filter-btn{font-size:12px;padding:5px 12px}
-  .filter-select{font-size:12px;padding:5px 8px}
-  .deals-grid{grid-template-columns:repeat(2,1fr);gap:10px}
-  .card-img-wrap{height:150px}
-  .deal-title{font-size:13px}
-  .deal-price{font-size:16px}
-  .deal-extra{font-size:11px;-webkit-line-clamp:1}
-  .deal-link{font-size:13px;padding:9px 10px;margin:0 8px 10px;border-radius:7px}
-  .card-body{padding:8px 8px 8px;gap:4px}
-  .card-badges{padding:8px 8px 0}
-  .store-badge{font-size:9px}
-  .time-ago{font-size:10px}
+  .card-img-wrap{height:160px}
+  .deal-title{font-size:14px;-webkit-line-clamp:2}
+  .deal-price{font-size:18px}
+  .deal-extra{font-size:12px;-webkit-line-clamp:1}
+  .deal-link{font-size:14px;padding:11px 10px;margin:0 8px 10px;border-radius:8px}
+  .card-body{padding:8px 10px;gap:4px}
+  .card-badges{padding:8px 10px 0}
+  .store-badge{font-size:10px}
+  .time-ago{font-size:11px}
   .stats-inner{font-size:12px;gap:12px}
   .filter-section{top:54px}
 }
@@ -213,8 +216,8 @@ function extractPrice(text) {
     if (!l) continue;
     // Skip lines that are about coupons/discounts not actual prices
     if (couponPattern.test(l)) continue;
-    // Skip lines starting with "Apply", "Get", "Use", "Extra", "Flat" followed by amount
-    if (/^(?:apply|get|use|extra|flat|additional|save|grab)\b/i.test(l)) continue;
+    // Skip lines starting with "Apply", "Get", "Use", "Extra", "Flat" — coupon amounts
+    if (/^(?:apply|use|extra|flat|additional)\b/i.test(l)) continue;
 
     // Extract price from this line
     let m;
