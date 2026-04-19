@@ -8,79 +8,81 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
 <style>
-:root { --red:#FF2D2D;--orange:#FF6B00;--yellow:#FFD600;--green:#00C853;--dark:#1A1A2E;--card:#FFFFFF;--text:#1a1a2e;--muted:#64748b;--border:#e2e8f0; }
+:root{--orange:#FF6B00;--green:#00C853;--text:#1a1a2e;--muted:#64748b;--border:#e2e8f0;}
 *{margin:0;padding:0;box-sizing:border-box}
-body{background:#ffffff;color:var(--text);font-family:'Nunito',sans-serif;min-height:100vh;overflow-x:hidden}
+body{background:#fff;color:var(--text);font-family:'Nunito',sans-serif;min-height:100vh;overflow-x:hidden}
+
+/* ── Header ── */
 header{background:linear-gradient(160deg,#0a0820 0%,#141b3a 50%,#0a0820 100%);border-bottom:2px solid var(--orange);position:sticky;top:0;z-index:100}
-.header-inner{max-width:1400px;margin:0 auto;display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:15px;padding:12px 20px}
-.site-title{font-family:'Bangers';font-size:28px;letter-spacing:2px;color:var(--orange);white-space:nowrap}
-.header-search{display:flex;align-items:center;background:rgba(255,255,255,0.1);border-radius:25px;padding:8px 16px;border:1px solid rgba(255,255,255,0.2)}
-.header-search input{background:none;border:none;color:white;outline:none;width:100%;font-size:14px;font-family:'Nunito'}
-.header-search input::placeholder{color:rgba(255,255,255,0.5)}
-.tg-btn{background:#229ED9;color:white;text-decoration:none;font-weight:800;padding:9px 18px;border-radius:25px;font-size:13px;white-space:nowrap;transition:0.2s}
-.tg-btn:hover{background:#1a8bbf}
+.header-inner{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;gap:10px}
+.site-title{font-family:'Bangers';font-size:24px;letter-spacing:2px;color:var(--orange);white-space:nowrap;flex-shrink:0}
+.header-search{display:none}
+.tg-btn{background:#229ED9;color:#fff;text-decoration:none;font-weight:800;padding:8px 14px;border-radius:22px;font-size:13px;white-space:nowrap;flex-shrink:0}
+
+/* ── Stats ── */
 .stats-bar{background:#fff;border-bottom:1px solid var(--border)}
-.stats-inner{max-width:1400px;margin:0 auto;display:flex;gap:20px;padding:8px 20px;font-size:13px;align-items:center;color:var(--text)}
-.filter-section{background:#fff;border-bottom:1px solid var(--border);position:sticky;top:58px;z-index:90}
-.filter-inner{max-width:1400px;margin:0 auto;padding:10px 20px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-.filter-group{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
-.filter-label{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;white-space:nowrap}
-.filter-btn{padding:5px 14px;border-radius:20px;border:1.5px solid var(--border);background:#fff;color:var(--muted);cursor:pointer;font-size:12px;font-family:'Nunito';font-weight:700;transition:0.2s;white-space:nowrap}
-.filter-btn:hover{border-color:var(--orange);color:var(--orange)}
-.filter-btn.active{background:var(--orange);color:white;border-color:var(--orange)}
-.filter-select{padding:5px 10px;border-radius:20px;border:1.5px solid var(--border);background:#fff;color:var(--text);cursor:pointer;font-size:12px;font-family:'Nunito';font-weight:700;outline:none;transition:0.2s}
-.filter-select:focus{border-color:var(--orange)}
-.filter-divider{width:1px;height:24px;background:var(--border);flex-shrink:0}
-.page-body{max-width:1400px;margin:0 auto;padding:16px 20px 40px}
-.deals-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(260px,45vw),1fr));gap:16px}
-.deal-card{background:#fff;border-radius:16px;overflow:hidden;border:1px solid #e8ecf0;transition:transform 0.2s,box-shadow 0.2s;display:flex;flex-direction:column;box-shadow:0 2px 8px rgba(0,0,0,0.07)}
-.deal-card:hover{transform:translateY(-3px);box-shadow:0 8px 24px rgba(0,0,0,0.1)}
-.card-img-wrap{width:100%;height:180px;background:#ffffff;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden}
-.card-img-wrap img{max-width:85%;max-height:85%;object-fit:contain;transition:transform 0.3s}
-.deal-card:hover .card-img-wrap img{transform:scale(1.05)}
-.card-img-placeholder{width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#f1f5f9,#e2e8f0);font-size:44px}
-.card-badges{padding:10px 12px 0;display:flex;justify-content:space-between;align-items:center}
-.store-badge{font-size:10px;font-weight:800;padding:3px 8px;border-radius:4px;text-transform:uppercase}
+.stats-inner{display:flex;gap:12px;padding:6px 14px;font-size:13px;align-items:center;color:var(--text)}
+
+/* ── Filters — horizontal scroll on mobile ── */
+.filter-section{background:#fff;border-bottom:1px solid var(--border);position:sticky;top:52px;z-index:90}
+.filter-inner{display:flex;gap:8px;align-items:center;padding:8px 14px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;white-space:nowrap}
+.filter-inner::-webkit-scrollbar{display:none}
+.filter-group{display:inline-flex;gap:6px;align-items:center;flex-shrink:0}
+.filter-label{display:none}
+.filter-divider{width:1px;height:22px;background:var(--border);flex-shrink:0}
+.filter-btn{padding:6px 14px;border-radius:20px;border:1.5px solid var(--border);background:#fff;color:var(--muted);cursor:pointer;font-size:13px;font-family:'Nunito';font-weight:700;white-space:nowrap;flex-shrink:0;transition:0.2s}
+.filter-btn:hover,.filter-btn.active{background:var(--orange);color:#fff;border-color:var(--orange)}
+.filter-select{padding:6px 10px;border-radius:20px;border:1.5px solid var(--border);background:#fff;color:var(--text);cursor:pointer;font-size:13px;font-family:'Nunito';font-weight:700;outline:none;flex-shrink:0}
+
+/* ── Grid — mobile first: 2 columns ── */
+.page-body{padding:12px 10px 60px}
+.deals-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+
+/* ── Card ── */
+.deal-card{background:#fff;border-radius:14px;overflow:hidden;border:1px solid #e8ecf0;display:flex;flex-direction:column;box-shadow:0 2px 8px rgba(0,0,0,0.07)}
+.card-img-wrap{width:100%;height:170px;background:#fff;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.card-img-wrap img{max-width:88%;max-height:88%;object-fit:contain}
+.card-img-placeholder{width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:#f8f9fa;font-size:40px}
+.card-badges{padding:8px 10px 0;display:flex;justify-content:space-between;align-items:center}
+.store-badge{font-size:10px;font-weight:800;padding:3px 7px;border-radius:4px;text-transform:uppercase}
 .badge-amazon{background:#FF9900;color:#000}
 .badge-flipkart{background:#2874F0;color:#fff}
 .badge-myntra{background:#FF3F6C;color:#fff}
 .badge-other{background:#64748b;color:#fff}
 .time-ago{font-size:11px;color:var(--muted)}
-.card-body{padding:10px 12px 12px;flex:1;display:flex;flex-direction:column;gap:5px}
-.deal-title{font-size:13px;font-weight:700;line-height:1.4;color:var(--text);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;flex:1}
-.deal-price{font-size:18px;font-weight:800;color:var(--green)}
-.deal-extra{font-size:11px;color:var(--muted);line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-.deal-link{display:block;margin:0 12px 12px;background:#229ED9;color:#fff;text-align:center;padding:8px 18px;text-decoration:none;font-weight:700;border-radius:8px;font-size:13px;transition:transform 0.15s,box-shadow 0.15s;animation:pulsebtn 2.5s ease-in-out infinite}
-.deal-link:hover{transform:translateY(-2px);box-shadow:0 4px 14px rgba(34,158,217,0.4);animation:none}
-@keyframes pulsebtn{0%,100%{box-shadow:0 0 0 0 rgba(34,158,217,0.3)}50%{box-shadow:0 0 0 5px rgba(34,158,217,0)}}
+.card-body{padding:8px 10px 10px;flex:1;display:flex;flex-direction:column;gap:4px}
+.deal-title{font-size:14px;font-weight:700;line-height:1.4;color:var(--text);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;flex:1}
+.deal-price{font-size:20px;font-weight:800;color:var(--green)}
+.deal-disc{font-size:12px;color:#e53e3e;font-weight:700}
+.deal-extra{font-size:12px;color:var(--muted);line-height:1.3;display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}
+.deal-link{display:block;margin:0 10px 10px;background:#229ED9;color:#fff;text-align:center;padding:12px;text-decoration:none;font-weight:800;border-radius:8px;font-size:15px}
+
 .loading{grid-column:1/-1;text-align:center;padding:60px 20px;color:var(--muted);font-size:16px}
 .loading-spinner{width:40px;height:40px;border:3px solid rgba(255,107,0,0.2);border-top-color:var(--orange);border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto 15px}
 @keyframes spin{to{transform:rotate(360deg)}}
+@keyframes pulsebtn{0%,100%{box-shadow:0 0 0 0 rgba(34,158,217,0.3)}50%{box-shadow:0 0 0 5px rgba(34,158,217,0)}}
 
-/* ── Mobile ──────────────────────────────── */
-@media(max-width:768px){
-  .deals-grid{grid-template-columns:repeat(2,1fr) !important;gap:10px}
-  .filter-inner{overflow-x:auto;flex-wrap:nowrap;padding:8px 12px}
-  .filter-label{display:none}
-  .filter-divider{display:none}
-  .filter-btn,.filter-select{flex-shrink:0}
-}
-@media(max-width:600px){
-  .header-inner{grid-template-columns:1fr auto}
-  .site-title{font-size:22px}
-  .header-search{display:none}
-  .tg-btn{font-size:12px;padding:8px 12px}
-  .card-img-wrap{height:160px}
-  .deal-title{font-size:14px;-webkit-line-clamp:2}
+/* ── Desktop overrides ── */
+@media(min-width:768px){
+  .header-inner{max-width:1400px;margin:0 auto;display:grid;grid-template-columns:auto 1fr auto;padding:12px 20px;gap:15px}
+  .site-title{font-size:28px}
+  .header-search{display:flex;align-items:center;background:rgba(255,255,255,0.1);border-radius:25px;padding:8px 16px;border:1px solid rgba(255,255,255,0.2);flex:1}
+  .header-search input{background:none;border:none;color:#fff;outline:none;width:100%;font-size:14px;font-family:'Nunito'}
+  .header-search input::placeholder{color:rgba(255,255,255,0.5)}
+  .tg-btn{padding:9px 18px;font-size:13px}
+  .filter-section{top:60px}
+  .filter-inner{max-width:1400px;margin:0 auto;padding:10px 20px;flex-wrap:wrap;overflow-x:visible}
+  .filter-label{display:inline-block;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;white-space:nowrap}
+  .page-body{max-width:1400px;margin:0 auto;padding:16px 20px 40px}
+  .deals-grid{grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px}
+  .card-img-wrap{height:190px}
+  .deal-title{font-size:13px}
   .deal-price{font-size:18px}
-  .deal-extra{font-size:12px;-webkit-line-clamp:1}
-  .deal-link{font-size:14px;padding:11px 10px;margin:0 8px 10px;border-radius:8px}
-  .card-body{padding:8px 10px;gap:4px}
-  .card-badges{padding:8px 10px 0}
-  .store-badge{font-size:10px}
-  .time-ago{font-size:11px}
-  .stats-inner{font-size:12px;gap:12px}
-  .filter-section{top:54px}
+  .deal-link{font-size:13px;padding:10px}
+  .deal-card:hover{transform:translateY(-3px);box-shadow:0 8px 24px rgba(0,0,0,0.1)}
+  .card-img-wrap img{transition:transform 0.3s}
+  .deal-card:hover .card-img-wrap img{transform:scale(1.05)}
+  .stats-inner{max-width:1400px;margin:0 auto;gap:20px;padding:8px 20px}
 }
 </style>
 </head>
@@ -478,7 +480,7 @@ function renderDeals(deals) {
         <div class="card-body">
           <div class="deal-title">${title}</div>
           ${priceNum ? `<div class="deal-price">₹${priceNum.toLocaleString('en-IN')}</div>` : ''}
-          ${discNum  ? `<div style="font-size:11px;color:#e53e3e;font-weight:700">${discNum}% off</div>` : ''}
+          ${discNum  ? `<div class="deal-disc">${discNum}% off</div>` : ''}
           ${extra    ? `<div class="deal-extra">${extra}</div>` : ''}
         </div>
         <a href="${deal.url||'#'}" target="_blank" rel="noopener" class="deal-link">Buy Now →</a>
