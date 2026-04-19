@@ -9,13 +9,16 @@
 <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
 <style>
 :root{--orange:#FF6B00;--green:#00C853;--text:#1a1a2e;--muted:#64748b;--border:#e8ecf0;}
+html {
+  -webkit-text-size-adjust: 100%;
+}
 *{margin:0;padding:0;box-sizing:border-box}
 body{background:#f5f5f5;color:var(--text);font-family:'Nunito',sans-serif;min-height:100vh;overflow-x:hidden}
 
 /* ── Header ── */
 header{background:linear-gradient(135deg,#0a0820,#1a1040);border-bottom:3px solid var(--orange);position:sticky;top:0;z-index:100}
 .header-inner{display:flex;align-items:center;justify-content:space-between;padding:11px 16px;gap:12px}
-.site-title{font-family:'Bangers';font-size:26px;letter-spacing:2px;color:var(--orange);white-space:nowrap}
+.site-title{font-family:'Bangers';font-size:28px;letter-spacing:2px;color:var(--orange);white-space:nowrap}
 .header-search{display:none}
 .tg-btn{background:#229ED9;color:#fff;text-decoration:none;font-weight:800;padding:9px 16px;border-radius:22px;font-size:14px;white-space:nowrap}
 
@@ -30,17 +33,17 @@ header{background:linear-gradient(135deg,#0a0820,#1a1040);border-bottom:3px soli
 .filter-label{display:none}
 .filter-divider{display:none}
 .filter-group{display:inline-flex;gap:6px;flex-shrink:0}
-.filter-btn{padding:7px 16px;border-radius:22px;border:1.5px solid var(--border);background:#fff;color:var(--muted);cursor:pointer;font-size:14px;font-family:'Nunito';font-weight:700;white-space:nowrap;flex-shrink:0}
+.filter-btn{padding:8px 18px;border-radius:22px;border:1.5px solid var(--border);background:#fff;color:var(--muted);cursor:pointer;font-size:15px;font-family:'Nunito';font-weight:700;white-space:nowrap;flex-shrink:0}
 .filter-btn.active{background:var(--orange);color:#fff;border-color:var(--orange)}
 .filter-select{padding:7px 12px;border-radius:22px;border:1.5px solid var(--border);background:#fff;color:var(--text);cursor:pointer;font-size:14px;font-family:'Nunito';font-weight:700;outline:none;flex-shrink:0;max-width:150px}
 
 /* ── Page body ── */
-.page-body{padding:10px 12px 80px}
+.page-body{padding:12px 14px 80px}
 
 /* ── Mobile: single column list layout (like Dealsmagnet) ── */
 .deals-grid{display:flex;flex-direction:column;gap:10px}
 .deal-card{background:#fff;border-radius:12px;overflow:hidden;border:1px solid var(--border);display:flex;flex-direction:row;align-items:stretch;box-shadow:0 1px 4px rgba(0,0,0,0.08)}
-.card-img-wrap{width:130px;min-width:130px;background:#fff;display:flex;align-items:center;justify-content:center;overflow:hidden;border-right:1px solid var(--border)}
+.card-img-wrap{width:110px;min-width:110px;background:#fff;display:flex;align-items:center;justify-content:center;overflow:hidden;border-right:1px solid var(--border)}
 .card-img-wrap img{width:110px;height:110px;object-fit:contain}
 .card-img-placeholder{width:130px;min-width:130px;height:100%;display:flex;align-items:center;justify-content:center;background:#f8f9fa;font-size:36px}
 .card-right{flex:1;display:flex;flex-direction:column;padding:10px 12px;min-width:0}
@@ -51,8 +54,8 @@ header{background:linear-gradient(135deg,#0a0820,#1a1040);border-bottom:3px soli
 .badge-myntra{background:#FF3F6C;color:#fff}
 .badge-other{background:#64748b;color:#fff}
 .time-ago{font-size:11px;color:var(--muted)}
-.deal-title{font-size:15px;font-weight:700;line-height:1.4;color:var(--text);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin-bottom:4px}
-.deal-price{font-size:22px;font-weight:800;color:var(--green);margin-bottom:2px}
+.deal-title{font-size:16px;font-weight:700;line-height:1.4;color:var(--text);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin-bottom:4px}
+.deal-price{font-size:24px;font-weight:800;color:var(--green);margin-bottom:2px}
 .deal-disc{font-size:12px;color:#e53e3e;font-weight:700;margin-bottom:2px}
 .deal-extra{font-size:12px;color:var(--muted);line-height:1.3;display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden;margin-bottom:6px}
 .deal-link{display:block;background:#229ED9;color:#fff;text-align:center;padding:10px;text-decoration:none;font-weight:800;border-radius:8px;font-size:15px;margin-top:auto}
