@@ -950,7 +950,21 @@ async def run():
                         affiliate_url = aff
                         product_url   = prod
                         break
-
+                # If product_url still empty, try extracting from raw message text
+                    if not product_url:
+                        for u in all_urls:
+                            if is_amazon(u) and not is_shortener(u):
+                                product_url = u
+                                break
+                        # Also scan raw message text for amazon.in URLs
+                        if not product_url:
+                            raw_amazon = re.search(
+                                r'https://(?:www\.)?amazon\.in/(?:dp|gp/product)/[A-Z0-9]{10}[^\s]*',
+                                raw_text
+                            )
+                            if raw_amazon:
+                                product_url = raw_amazon.group(0).rstrip('.,;:!?)>')
+              
                 if not affiliate_url:
                     print(f"    [feed] skip {feed_source}: no affiliate URL")
                     continue
